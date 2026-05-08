@@ -1,0 +1,31 @@
+INDUSTRIAL ACCIDENT AND HAZMAT RESPONSE PROTOCOL
+Standard Operating Procedure
+
+1. SCENE SAFETY
+- Approach from uphill, upwind, and upstream whenever possible.
+- Establish hot, warm, and cold zones before rescue or medical operations.
+- Identify the substance from labels, safety data sheets, plant operators, or emergency guides.
+- Keep ignition sources away if flammable gas, vapor, or dust is suspected.
+- Use appropriate PPE; do not enter the hot zone without trained hazmat personnel.
+
+2. PUBLIC PROTECTION
+- For toxic gas leaks, decide shelter-in-place or evacuation based on plume direction and concentration.
+- Seal buildings, close windows, shut ventilation, and move people to upper floors for shelter-in-place.
+- Evacuate crosswind first, then upwind, avoiding the plume path.
+- Issue clear public messages naming the affected area, safe routes, and symptoms needing care.
+
+3. MEDICAL AND DECONTAMINATION
+- Set up decontamination before transporting exposed patients where practical.
+- Remove contaminated clothing and rinse exposed skin with water unless substance guidance says otherwise.
+- Track respiratory distress, burns, eye exposure, neurological symptoms, and delayed toxicity.
+- Notify hospitals about the chemical, number of patients, and required isolation precautions.
+
+4. CONTAINMENT AND CONTROL
+- Shut valves, isolate power, plug leaks, dike drains, and stop runoff only if safe.
+- Protect water bodies, storm drains, and food storage from contamination.
+- Request specialist support from fire hazmat, pollution control board, industry experts, and police.
+
+5. RECOVERY
+- Maintain exclusion zones until monitoring confirms safe levels.
+- Document exposure lists, cleanup actions, disposal chain, and environmental sampling.
+- Provide public health follow-up for exposed communities and responders.

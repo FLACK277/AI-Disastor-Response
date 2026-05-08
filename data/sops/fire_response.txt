@@ -1,0 +1,54 @@
+FIRE EMERGENCY RESPONSE PROTOCOL
+National Disaster Management Authority (NDMA) — Standard Operating Procedure
+
+1. IMMEDIATE RESPONSE (0–15 Minutes)
+- Alert nearest fire station via 101 emergency number.
+- Activate building fire alarm and PA system for evacuation.
+- Deploy first-response fire tenders within 7 minutes (urban) / 20 minutes (rural).
+- Establish incident command post upwind of the fire.
+- Request police for traffic control and perimeter security.
+
+2. EVACUATION
+- Initiate floor-by-floor evacuation starting from the fire floor and above.
+- Use designated fire escape routes — never use elevators.
+- Assembly point must be at least 100 meters from the structure.
+- Conduct headcount using building occupant register.
+- Deploy aerial ladders for high-rise rescues (floors above 4th).
+- Use smoke hoods and breathing apparatus for rescuers entering smoke-filled areas.
+
+3. FIREFIGHTING OPERATIONS
+- Assess fire type: Class A (solid), B (liquid), C (gas), D (metal), E (electrical).
+- Use appropriate extinguishing agent: water, foam, CO2, dry chemical powder.
+- For electrical fires: cut power supply BEFORE applying water.
+- Establish water supply from nearest hydrant or tanker relay system.
+- Deploy thermal imaging cameras to locate trapped persons and hidden fire pockets.
+- Maintain collapse zone perimeter — no personnel within distance equal to building height.
+
+4. MEDICAL RESPONSE
+- Deploy ambulances with burn treatment capability.
+- Set up triage point at assembly area: Red (critical), Yellow (serious), Green (minor).
+- Treat burn injuries: cool with clean water for 20 minutes, cover with sterile dressing.
+- Monitor for smoke inhalation: administer oxygen, prepare for intubation if needed.
+- Transfer critical patients to designated burn centers (list maintained by district).
+
+5. HAZARDOUS MATERIALS
+- If industrial chemicals involved, identify substance via Safety Data Sheet (SDS).
+- Establish hot zone (immediate danger), warm zone (decon), cold zone (safe).
+- Deploy HAZMAT team with chemical-resistant PPE.
+- Set up decontamination shower for exposed persons.
+- Monitor air quality downwind for toxic fumes.
+
+6. INVESTIGATION AND RECOVERY
+- Preserve fire scene for forensic investigation after suppression.
+- Document fire origin, spread pattern, and contributing factors.
+- Assess structural integrity before allowing re-entry.
+- Provide temporary shelter for displaced occupants.
+- Begin insurance documentation and loss assessment.
+- Conduct critical incident stress debriefing for responders.
+
+7. PREVENTION MEASURES
+- Verify fire NOC compliance for all commercial and high-rise buildings.
+- Conduct quarterly fire drills in schools, hospitals, and offices.
+- Ensure functioning fire extinguishers on every floor.
+- Maintain clear access roads for fire tenders (minimum 6m width).
+- Install smoke detectors and sprinkler systems as per NBC 2016 standards.

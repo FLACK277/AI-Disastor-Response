@@ -1,0 +1,50 @@
+EARTHQUAKE EMERGENCY RESPONSE PROTOCOL
+National Disaster Management Authority (NDMA) — Standard Operating Procedure
+
+1. IMMEDIATE RESPONSE (0–1 Hour)
+- Activate Emergency Operations Center (EOC) immediately upon seismic event detection above magnitude 4.5.
+- Issue automated alerts to all registered emergency responders within 100km radius.
+- Deploy NDRF battalions from nearest staging areas within 30 minutes.
+- Establish communication links with district administration and local police.
+- Activate search-and-rescue (SAR) teams with equipment pre-positioned at district level.
+
+2. SEARCH AND RESCUE PHASE (1–72 Hours)
+- Conduct rapid damage assessment using aerial survey (drones/helicopters).
+- Prioritize collapsed structures in high-density residential and commercial zones.
+- Deploy canine units and acoustic detection equipment for trapped survivors.
+- Set up triage centers at safe open areas near affected zones.
+- Coordinate with military for heavy lifting equipment if structural collapse exceeds local capacity.
+- Maintain 24/7 SAR operations with rotating shifts of 8 hours.
+
+3. MEDICAL RESPONSE
+- Activate mass casualty incident (MCI) protocol at all hospitals within 50km.
+- Deploy Mobile Medical Units (MMUs) to areas where hospitals are damaged.
+- Ensure blood bank inventory is verified and cross-matched within 2 hours.
+- Set up psychological first aid stations alongside medical triage.
+- Establish patient tracking system across all treatment facilities.
+
+4. SHELTER AND RELIEF
+- Open pre-identified shelter locations: stadiums, community halls, school grounds.
+- Provide emergency supplies: water (3L/person/day), food, blankets, hygiene kits.
+- Ensure separate facilities for women, children, elderly, and persons with disabilities.
+- Set up temporary sanitation facilities (1 toilet per 50 persons).
+- Begin damage assessment of residential structures for habitability classification.
+
+5. COMMUNICATION
+- Issue public advisories via SMS, radio, TV, and social media every 2 hours.
+- Establish missing persons helpline and online portal.
+- Provide multilingual updates (Hindi, English, regional languages).
+- Brief media twice daily at designated press centers.
+- Coordinate with telecom providers to restore network priority for emergency calls.
+
+6. AFTERSHOCK MANAGEMENT
+- Monitor seismic activity continuously; issue aftershock warnings.
+- Evacuate damaged structures preemptively if aftershock risk is high.
+- Re-inspect all bridges, flyovers, and critical infrastructure after aftershocks above magnitude 3.0.
+
+7. RECOVERY PHASE (72 Hours Onward)
+- Begin structural safety audits of all buildings in affected area.
+- Initiate emergency housing assistance and insurance claim processing.
+- Restore water supply, electricity, and gas connections after safety verification.
+- Open schools and offices in verified-safe structures.
+- Conduct post-event psychological support programs for affected communities.

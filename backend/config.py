@@ -1,0 +1,42 @@
+"""
+AI Disaster Response Coordinator — Configuration
+Loads settings from .env file using pydantic-settings.
+"""
+
+import os
+from pydantic_settings import BaseSettings
+from typing import Optional
+
+
+class Settings(BaseSettings):
+    APP_NAME: str = "AI Disaster Response Coordinator"
+    DEBUG: bool = True
+
+    # Groq LLM
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    # JWT Auth
+    JWT_SECRET: str = "disaster-response-2026-super-secret-key-change-in-prod"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 480
+
+    # Database
+    DATABASE_URL: str = "sqlite:///./disaster_response.db"
+
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
+
+    # Mock Feed (disabled by default so production-like runs only show real reports)
+    MOCK_FEED_INTERVAL: int = 25
+    MOCK_FEED_ENABLED: bool = False
+
+    # Geocoding
+    GEOCODER_USER_AGENT: str = "disaster-response-coordinator"
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+
+settings = Settings()

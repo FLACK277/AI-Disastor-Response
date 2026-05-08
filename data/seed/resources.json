@@ -1,0 +1,22 @@
+[
+  {"id": 1, "name": "NDRF Battalion 1", "resource_type": "ndrf_team", "status": "available", "latitude": 28.6139, "longitude": 77.2090, "capacity": 45, "contact": "ndrf-bn1@gov.in"},
+  {"id": 2, "name": "NDRF Battalion 4", "resource_type": "ndrf_team", "status": "available", "latitude": 19.0760, "longitude": 72.8777, "capacity": 45, "contact": "ndrf-bn4@gov.in"},
+  {"id": 3, "name": "NDRF Battalion 7", "resource_type": "ndrf_team", "status": "available", "latitude": 22.5726, "longitude": 88.3639, "capacity": 45, "contact": "ndrf-bn7@gov.in"},
+  {"id": 4, "name": "NDRF Battalion 10", "resource_type": "ndrf_team", "status": "available", "latitude": 13.0827, "longitude": 80.2707, "capacity": 45, "contact": "ndrf-bn10@gov.in"},
+  {"id": 5, "name": "Delhi Ambulance Unit A", "resource_type": "ambulance", "status": "available", "latitude": 28.6353, "longitude": 77.2250, "capacity": 4, "contact": "102"},
+  {"id": 6, "name": "Delhi Ambulance Unit B", "resource_type": "ambulance", "status": "available", "latitude": 28.5505, "longitude": 77.1855, "capacity": 4, "contact": "102"},
+  {"id": 7, "name": "Mumbai Ambulance Unit A", "resource_type": "ambulance", "status": "available", "latitude": 19.0330, "longitude": 72.8490, "capacity": 4, "contact": "102"},
+  {"id": 8, "name": "DFS Fire Tender Alpha", "resource_type": "fire_truck", "status": "available", "latitude": 28.6328, "longitude": 77.2197, "capacity": 8, "contact": "101"},
+  {"id": 9, "name": "DFS Fire Tender Beta", "resource_type": "fire_truck", "status": "available", "latitude": 28.6700, "longitude": 77.2300, "capacity": 8, "contact": "101"},
+  {"id": 10, "name": "Mumbai Fire Brigade Unit 1", "resource_type": "fire_truck", "status": "available", "latitude": 18.9440, "longitude": 72.8310, "capacity": 8, "contact": "101"},
+  {"id": 11, "name": "NDRF Rescue Boat Delta", "resource_type": "rescue_boat", "status": "available", "latitude": 22.5726, "longitude": 88.3639, "capacity": 12, "contact": "ndrf-boat@gov.in"},
+  {"id": 12, "name": "NDRF Rescue Boat Echo", "resource_type": "rescue_boat", "status": "available", "latitude": 13.0827, "longitude": 80.2707, "capacity": 12, "contact": "ndrf-boat-e@gov.in"},
+  {"id": 13, "name": "IAF Helicopter HAL-1", "resource_type": "helicopter", "status": "available", "latitude": 28.5840, "longitude": 77.2067, "capacity": 15, "contact": "iaf-rescue@gov.in"},
+  {"id": 14, "name": "IAF Helicopter HAL-2", "resource_type": "helicopter", "status": "available", "latitude": 19.0896, "longitude": 72.8656, "capacity": 15, "contact": "iaf-rescue2@gov.in"},
+  {"id": 15, "name": "Medical Mobile Unit Delhi", "resource_type": "medical_unit", "status": "available", "latitude": 28.6100, "longitude": 77.2300, "capacity": 20, "contact": "mmu-delhi@gov.in"},
+  {"id": 16, "name": "Medical Mobile Unit Mumbai", "resource_type": "medical_unit", "status": "available", "latitude": 19.0500, "longitude": 72.8800, "capacity": 20, "contact": "mmu-mumbai@gov.in"},
+  {"id": 17, "name": "Delhi Volunteer Corps Alpha", "resource_type": "volunteer_group", "status": "available", "latitude": 28.6400, "longitude": 77.2100, "capacity": 30, "contact": "vol-delhi@ngo.org"},
+  {"id": 18, "name": "Mumbai Volunteer Corps Beta", "resource_type": "volunteer_group", "status": "available", "latitude": 19.0600, "longitude": 72.8500, "capacity": 30, "contact": "vol-mumbai@ngo.org"},
+  {"id": 19, "name": "Kolkata Volunteer Corps", "resource_type": "volunteer_group", "status": "available", "latitude": 22.5500, "longitude": 88.3500, "capacity": 25, "contact": "vol-kolkata@ngo.org"},
+  {"id": 20, "name": "Chennai Volunteer Corps", "resource_type": "volunteer_group", "status": "available", "latitude": 13.0600, "longitude": 80.2500, "capacity": 25, "contact": "vol-chennai@ngo.org"}
+]

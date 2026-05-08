@@ -1,0 +1,24 @@
+MASS CASUALTY MEDICAL TRIAGE PROTOCOL
+Standard Operating Procedure
+
+1. TRIAGE SETUP
+- Establish triage in a safe cold zone with clear ambulance access and patient flow.
+- Use simple categories: immediate, delayed, minor, expectant/deceased.
+- Tag every patient with identity if known, triage category, time, vital signs, and destination.
+- Re-triage regularly because patient condition can change.
+
+2. LIFE-SAVING INTERVENTIONS
+- Control major bleeding, open airway, support breathing, and treat shock.
+- Prioritize patients with airway compromise, severe bleeding, altered consciousness, burns, crush injury, or hypothermia.
+- Keep walking wounded separate but supervised; they may deteriorate.
+- Maintain infection prevention, PPE, and safe sharps disposal.
+
+3. TRANSPORT COORDINATION
+- Distribute patients across hospitals according to capacity and specialty.
+- Notify receiving hospitals with patient count, injury type, ETA, and decontamination status.
+- Keep one officer responsible for ambulance loading and destination decisions.
+
+4. DOCUMENTATION AND FAMILY SUPPORT
+- Maintain patient tracking from scene to hospital.
+- Establish missing persons desk and family information channel.
+- Arrange psychological first aid for survivors, families, and responders.

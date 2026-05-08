@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Disaster Response Coordinator — Real-Time Emergency Platform</title>
+    <meta name="description" content="AI-powered multi-agent disaster response coordination platform with real-time mapping, resource allocation, and emergency SOP chatbot.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- ─── Login Screen ──────────────────────────────────────────── -->
+    <div id="login-screen" class="screen active">
+        <div class="login-bg">
+            <div class="login-card">
+                <div class="login-logo">
+                    <div class="logo-icon">🚨</div>
+                    <h1>Disaster Response<br><span>AI Coordinator</span></h1>
+                    <p class="login-subtitle">Multi-Agent Emergency Intelligence Platform</p>
+                </div>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Username</label>
+                        <input type="text" id="login-username" placeholder="Enter username" value="admin" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Enter password" value="password123" required>
+                    </div>
+                    <button type="submit" class="btn-primary" id="login-btn">
+                        <span>Sign In</span>
+                        <div class="btn-loader hidden"></div>
+                    </button>
+                </form>
+                <div class="demo-accounts">
+                    <p>Demo Accounts:</p>
+                    <div class="demo-chips">
+                        <button class="chip" onclick="fillLogin('admin','password123')">👑 Authority</button>
+                        <button class="chip" onclick="fillLogin('rescuer','password123')">🚑 NGO / Rescue</button>
+                        <button class="chip" onclick="fillLogin('citizen','password123')">👤 Civilian</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Main Dashboard ────────────────────────────────────────── -->
+    <div id="dashboard-screen" class="screen">
+        <!-- Sidebar -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">🚨</div>
+                <h2>ADRC</h2>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-page="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </li>
+                <li data-page="incidents">
+                    <span class="nav-icon">⚠️</span>
+                    <span class="nav-text">Incidents</span>
+                    <span class="nav-badge" id="incident-badge">0</span>
+                </li>
+                <li data-page="resources">
+                    <span class="nav-icon">🚀</span>
+                    <span class="nav-text">Resources</span>
+                </li>
+                <li data-page="alerts">
+                    <span class="nav-icon">🔔</span>
+                    <span class="nav-text">Alerts</span>
+                    <span class="nav-badge pulse" id="alert-badge">0</span>
+                </li>
+                <li data-page="sos">
+                    <span class="nav-icon">🆘</span>
+                    <span class="nav-text">Report SOS</span>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar">A</div>
+                    <div class="user-details">
+                        <span class="user-name" id="user-name">Admin</span>
+                        <span class="user-role" id="user-role">Authority</span>
+                    </div>
+                </div>
+                <button class="btn-logout" onclick="logout()">↩ Logout</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main id="main-content">
+            <!-- Top Bar -->
+            <header id="topbar">
+                <div class="topbar-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+                    <h2 id="page-title">Dashboard</h2>
+                </div>
+                <div class="topbar-right">
+                    <div class="live-indicator">
+                        <span class="live-dot"></span>
+                        <span>LIVE</span>
+                    </div>
+                    <button class="btn-icon" id="chatbot-toggle" type="button" title="Emergency SOP Chatbot">💬</button>
+                    <div class="connection-status" id="ws-status" title="WebSocket Status">
+                        <span class="status-dot disconnected"></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ─── Dashboard Page ─────────────────────────────────── -->
+            <section id="page-dashboard" class="page active">
+                <!-- Stats Row -->
+                <div class="stats-grid">
+                    <div class="stat-card" style="--accent: #ef4444">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-total">0</span>
+                            <span class="stat-label">Total Incidents</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="--accent: #f59e0b">
+                        <div class="stat-icon">🔥</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-active">0</span>
+                            <span class="stat-label">Active</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="--accent: #10b981">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-resolved">0</span>
+                            <span class="stat-label">Resolved</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="--accent: #3b82f6">
+                        <div class="stat-icon">🚀</div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-deployed">0</span>
+                            <span class="stat-label">Deployed Resources</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map + Alerts -->
+                <div class="dashboard-grid">
+                    <div class="card map-card">
+                        <div class="card-header">
+                            <h3>🗺️ Live Incident Map</h3>
+                            <div class="map-controls">
+                                <button class="btn-sm" onclick="centerMapIndia()">🇮🇳 India</button>
+                                <button class="btn-sm" onclick="toggleHeatmap()">🌡️ Heatmap</button>
+                            </div>
+                        </div>
+                        <div id="map-container"></div>
+                    </div>
+                    <div class="card alerts-card">
+                        <div class="card-header">
+                            <h3>🔔 Live Alerts</h3>
+                            <span class="alert-count" id="alert-count">0 alerts</span>
+                        </div>
+                        <div id="alerts-feed" class="alerts-feed">
+                            <div class="empty-state">
+                                <span>📡</span>
+                                <p>Waiting for incoming alerts...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-grid">
+                    <div class="card">
+                        <div class="card-header"><h3>📊 Severity Distribution</h3></div>
+                        <div class="chart-container" id="severity-chart"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>🏷️ Disaster Types</h3></div>
+                        <div class="chart-container" id="type-chart"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── Incidents Page ─────────────────────────────────── -->
+            <section id="page-incidents" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>⚠️ All Incidents</h3>
+                        <button class="btn-primary btn-sm" onclick="refreshIncidents()">↻ Refresh</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="incidents-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Type</th>
+                                    <th>Severity</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="incidents-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── Resources Page ─────────────────────────────────── -->
+            <section id="page-resources" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>🚀 Resource Status</h3>
+                        <div class="resource-filters">
+                            <button class="btn-sm filter-active" data-filter="all" onclick="filterResources('all')">All</button>
+                            <button class="btn-sm" data-filter="available" onclick="filterResources('available')">Available</button>
+                            <button class="btn-sm" data-filter="deployed" onclick="filterResources('deployed')">Deployed</button>
+                        </div>
+                    </div>
+                    <div class="resource-grid" id="resources-grid">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── Alerts Page ────────────────────────────────────── -->
+            <section id="page-alerts" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>🔔 Alert History</h3>
+                    </div>
+                    <div id="alerts-list" class="alerts-list">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── SOS Page ───────────────────────────────────────── -->
+            <section id="page-sos" class="page">
+                <div class="card sos-card">
+                    <div class="card-header"><h3>🆘 Report Emergency</h3></div>
+                    <form id="sos-form">
+                        <div class="form-group">
+                            <label for="sos-title">Emergency Title</label>
+                            <input type="text" id="sos-title" placeholder="Brief description of the emergency" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sos-description">Detailed Description</label>
+                            <textarea id="sos-description" rows="4" placeholder="Describe what is happening, how many people are affected, what help is needed..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="sos-location">Location</label>
+                            <input type="text" id="sos-location" placeholder="City, area, or landmark" required>
+                        </div>
+                        <button type="submit" class="btn-primary btn-danger" id="sos-submit">
+                            🆘 Submit Emergency Report
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <!-- ─── Chatbot Sidebar ───────────────────────────────────── -->
+        <aside id="chatbot" class="chatbot-panel">
+            <div class="chatbot-header">
+                <h3>🤖 Emergency SOP Assistant</h3>
+                <button class="btn-icon" id="chatbot-close" type="button">✕</button>
+            </div>
+            <div class="chatbot-messages" id="chat-messages">
+                <div class="chat-msg bot">
+                    <div class="chat-bubble">
+                        👋 I'm your Emergency SOP Assistant. Ask me about earthquakes, floods, fires, landslides, cyclones, tsunamis, industrial incidents, evacuation, shelter, and medical triage.
+                    </div>
+                </div>
+            </div>
+            <form id="chat-form" class="chatbot-input">
+                <input type="text" id="chat-input" placeholder="Ask about landslide evacuation, flood rescue, triage..." autocomplete="off">
+                <button type="submit" class="btn-send">➤</button>
+            </form>
+        </aside>
+    </div>
+
+    <!-- ─── Toast Container ───────────────────────────────────────── -->
+    <div id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

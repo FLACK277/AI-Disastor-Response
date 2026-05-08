@@ -1,0 +1,55 @@
+FLOOD EMERGENCY RESPONSE AND EVACUATION PROTOCOL
+National Disaster Management Authority (NDMA) — Standard Operating Procedure
+
+1. PRE-FLOOD PREPAREDNESS (Warning Phase)
+- Monitor IMD flood bulletins and CWC river level data continuously.
+- Issue flood warning when river levels cross Warning Level (WL) threshold.
+- Activate flood control rooms at state and district levels.
+- Pre-position rescue boats, life jackets, and inflatable rafts at identified staging areas.
+- Alert NDRF and SDRF battalions for potential deployment.
+- Issue evacuation advisories to low-lying areas via SMS, loudspeakers, and local media.
+
+2. EVACUATION PROTOCOL
+- Begin mandatory evacuation when water level crosses Danger Level (DL).
+- Prioritize evacuation: hospitals, elderly care homes, schools, disability centers.
+- Deploy rescue boats and amphibious vehicles for areas already inundated.
+- Establish evacuation corridors — avoid bridges and low-lying roads.
+- Use helicopters for rooftop rescues when ground access is cut off.
+- Maintain evacuation registry: name, age, address, medical needs, contact number.
+
+3. FLOOD RESCUE OPERATIONS
+- Deploy trained swimmers and divers for swift-water rescue.
+- Use inflatable boats with outboard motors for moving through flooded streets.
+- Set up rope rescue systems for crossing flooded channels.
+- Coordinate with Navy and Coast Guard for large-scale riverine/coastal flooding.
+- Maintain 24/7 helpline (NDRF: 9711077372, Emergency: 112) for SOS calls.
+
+4. RELIEF CAMP MANAGEMENT
+- Set up relief camps on elevated ground above historical flood levels.
+- Provide clean drinking water via water tankers and purification tablets.
+- Distribute cooked meals (minimum 2 meals/day) and dry ration kits.
+- Ensure medical camp with ORS, anti-diarrheal, and anti-venom medicines.
+- Separate sanitation and bathing facilities for men and women.
+- Conduct twice-daily headcount and maintain camp population register.
+
+5. HEALTH AND SANITATION
+- Deploy health surveillance teams to prevent waterborne disease outbreaks.
+- Monitor for cholera, typhoid, leptospirosis, and dengue.
+- Ensure chlorination of all water sources in flood-affected areas.
+- Spray anti-larval chemicals to prevent mosquito breeding.
+- Set up animal carcass disposal teams to prevent contamination.
+
+6. INFRASTRUCTURE MANAGEMENT
+- Shut down electricity supply to flooded areas immediately.
+- Close railway lines and highways with water logging above 30cm.
+- Deploy pumping stations to drain water from critical infrastructure.
+- Monitor dam spillway operations and coordinate controlled releases.
+- Inspect and barricade damaged roads and bridges.
+
+7. POST-FLOOD RECOVERY
+- Conduct house-to-house damage assessment after water recedes.
+- Restore drinking water supply after testing for contamination.
+- Resume electricity only after safety inspection of transformers and lines.
+- Provide financial assistance for crop loss, house damage, and livestock loss.
+- Begin desilting of drains and water channels to prevent re-flooding.
+- Conduct epidemiological surveillance for 4 weeks post-flood.
