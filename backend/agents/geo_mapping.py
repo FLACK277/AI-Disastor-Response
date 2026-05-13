@@ -14,37 +14,30 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Fallback coordinates for known Indian cities/states. These are only used when
+# Fallback coordinates for Uttarakhand places. These are only used when
 # the reported location explicitly contains the listed place name.
 CITY_COORDS = {
-    "delhi": (28.6139, 77.2090),
-    "new delhi": (28.6139, 77.2090),
-    "mumbai": (19.0760, 72.8777),
-    "kolkata": (22.5726, 88.3639),
-    "chennai": (13.0827, 80.2707),
-    "bangalore": (12.9716, 77.5946),
-    "bengaluru": (12.9716, 77.5946),
-    "hyderabad": (17.3850, 78.4867),
-    "ahmedabad": (23.0225, 72.5714),
-    "pune": (18.5204, 73.8567),
-    "jaipur": (26.9124, 75.7873),
-    "lucknow": (26.8467, 80.9462),
-    "bhopal": (23.2599, 77.4126),
-    "patna": (25.6093, 85.1376),
-    "indore": (22.7196, 75.8577),
-    "shimla": (31.1048, 77.1734),
-    "chandigarh": (30.7333, 76.7794),
-    "guwahati": (26.1445, 91.7362),
-    "bhubaneswar": (20.2961, 85.8245),
-    "thiruvananthapuram": (8.5241, 76.9366),
-    "kochi": (9.9312, 76.2673),
-    "vizag": (17.6868, 83.2185),
-    "visakhapatnam": (17.6868, 83.2185),
     "uttarakhand": (30.0668, 79.0193),
+    "dehradun": (30.3165, 78.0322),
+    "rishikesh": (30.0869, 78.2676),
+    "haridwar": (29.9457, 78.1642),
+    "haldwani": (29.2183, 79.5130),
+    "nainital": (29.3919, 79.4542),
+    "almora": (29.5892, 79.6467),
+    "bageshwar": (29.8374, 79.7714),
+    "pithoragarh": (29.5829, 80.2182),
+    "champawat": (29.3364, 80.0910),
+    "uttarkashi": (30.7268, 78.4354),
+    "chamoli": (30.4090, 79.3200),
+    "rudraprayag": (30.2850, 78.9820),
+    "pauri": (30.1524, 78.7771),
+    "pauri garhwal": (30.1524, 78.7771),
+    "tehri": (30.3782, 78.4804),
+    "tehri garhwal": (30.3782, 78.4804),
     "kedarnath": (30.7352, 79.0669),
-    "assam": (26.2006, 92.9376),
-    "rajasthan": (27.0238, 74.2179),
-    "odisha": (20.9517, 85.0985),
+    "badrinath": (30.7433, 79.4938),
+    "joshimath": (30.5553, 79.5644),
+    "gauchar": (30.2915, 79.2131),
 }
 
 

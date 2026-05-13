@@ -5,6 +5,13 @@ const API = window.location.hostname === 'localhost'
   : window.location.origin;
 
 // ─── State ───
+const UTTARAKHAND_CENTER = [30.0668, 79.0193];
+const UTTARAKHAND_ZOOM = 8;
+const UTTARAKHAND_BOUNDS = [
+  [28.7, 77.5],
+  [31.6, 81.2],
+];
+
 let state = {
   token: localStorage.getItem('adrc_token') || null,
   user: JSON.parse(localStorage.getItem('adrc_user') || 'null'),
@@ -22,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showDashboard();
   }
   setupEventListeners();
+  window.centerMapUttarakhand = centerMapUttarakhand;
 });
 
 function setupEventListeners() {
@@ -168,14 +176,18 @@ async function loadDashboardData() {
 function initMap() {
   if (state.map) return;
   state.map = L.map('map-container', {
-    center: [22.5, 78.9],
-    zoom: 5,
+    center: UTTARAKHAND_CENTER,
+    zoom: UTTARAKHAND_ZOOM,
     zoomControl: true,
+    minZoom: 7,
+    maxBounds: UTTARAKHAND_BOUNDS,
+    maxBoundsViscosity: 1.0,
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap © CARTO',
     maxZoom: 18,
   }).addTo(state.map);
+  state.map.fitBounds(UTTARAKHAND_BOUNDS);
   setTimeout(() => state.map.invalidateSize(), 300);
 }
 
@@ -214,12 +226,12 @@ function updateMapMarkers(incidents) {
   });
 }
 
-function centerMapIndia() {
-  if (state.map) state.map.setView([22.5, 78.9], 5);
+function centerMapUttarakhand() {
+  if (state.map) state.map.fitBounds(UTTARAKHAND_BOUNDS);
 }
 
 function toggleHeatmap() {
-  showToast('Heatmap overlays incident density on the map', 'info');
+  showToast('Heatmap overlays Uttarakhand incident density on the map', 'info');
 }
 
 function severityColor(sev) {

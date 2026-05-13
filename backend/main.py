@@ -7,7 +7,6 @@ import json
 import logging
 import asyncio
 from pathlib import Path
-from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +31,7 @@ from backend.auth import (
 from backend.websocket_manager import ws_manager
 from backend.agents.orchestrator import orchestrator
 from backend.agents.rag_knowledge import rag_agent
+from backend.live_sources import live_source
 from backend.mock_feed.generator import run_mock_feed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -76,7 +76,7 @@ def seed_database():
         db.commit()
         logger.info("✅ Default demo users created (admin/rescuer/citizen — password: password123)")
         clear_hidden_mock_allocations(db)
-        seed_example_history(db)
+        purge_example_history(db)
     finally:
         db.close()
 
@@ -85,7 +85,12 @@ def visible_incidents_query(db: Session, include_mock: bool = False):
     """Return incidents shown in normal app views."""
     query = db.query(IncidentDB)
     if not include_mock:
-        query = query.filter(or_(IncidentDB.source.is_(None), IncidentDB.source != "mock_feed"))
+        query = query.filter(
+            or_(
+                IncidentDB.source.is_(None),
+                ~IncidentDB.source.in_(["mock_feed", "example_history"]),
+            )
+        )
     return query
 
 
@@ -94,9 +99,48 @@ def visible_alerts_query(db: Session, include_mock: bool = False):
     query = db.query(AlertDB)
     if not include_mock:
         query = query.outerjoin(IncidentDB, AlertDB.incident_id == IncidentDB.id).filter(
-            or_(AlertDB.incident_id.is_(None), IncidentDB.source != "mock_feed")
+            or_(
+                AlertDB.incident_id.is_(None),
+                ~IncidentDB.source.in_(["mock_feed", "example_history"]),
+            )
         )
     return query
+
+
+def serialize_incident(record: IncidentDB | dict) -> dict:
+    """Normalize DB and live-feed incidents into API response shape."""
+    if isinstance(record, dict):
+        return record
+    return IncidentResponse.model_validate(record).model_dump()
+
+
+def serialize_alert(record: AlertDB | dict) -> dict:
+    """Normalize DB and live-feed alerts into API response shape."""
+    if isinstance(record, dict):
+        return record
+    return AlertResponse.model_validate(record).model_dump()
+
+
+def combined_incidents(db: Session, limit: int = 50, include_mock: bool = False) -> list[dict]:
+    """Return live Uttarakhand incidents plus stored user incidents."""
+    stored = [
+        serialize_incident(incident)
+        for incident in visible_incidents_query(db, include_mock).order_by(IncidentDB.created_at.desc()).all()
+    ]
+    live = live_source.fetch(limit=limit).incidents
+    combined = sorted(stored + live, key=lambda item: item["created_at"], reverse=True)
+    return combined[:limit]
+
+
+def combined_alerts(db: Session, limit: int = 30, include_mock: bool = False) -> list[dict]:
+    """Return live-source alerts plus stored alerts."""
+    stored = [
+        serialize_alert(alert)
+        for alert in visible_alerts_query(db, include_mock).order_by(AlertDB.created_at.desc()).all()
+    ]
+    live = live_source.fetch(limit=limit).alerts
+    combined = sorted(stored + live, key=lambda item: item["created_at"], reverse=True)
+    return combined[:limit]
 
 
 def clear_hidden_mock_allocations(db: Session):
@@ -124,78 +168,19 @@ def clear_hidden_mock_allocations(db: Session):
         logger.info(f"Released {updated} resources assigned to hidden mock incidents")
 
 
-def seed_example_history(db: Session):
-    """Create a small visible incident history for demos without fake live alerts."""
-    if visible_incidents_query(db).count() > 0:
+def purge_example_history(db: Session):
+    """Remove previously-seeded example incidents and their alerts."""
+    example_ids = [
+        row[0]
+        for row in db.query(IncidentDB.id).filter(IncidentDB.source == "example_history").all()
+    ]
+    if not example_ids:
         return
 
-    now = datetime.utcnow()
-    examples = [
-        {
-            "title": "Example: Yamuna flood watch",
-            "description": "Historical example only. River levels rose near low-lying Yamuna areas after heavy rain.",
-            "disaster_type": "flood",
-            "severity": 3,
-            "status": IncidentStatus.CONTAINED,
-            "latitude": 28.6506,
-            "longitude": 77.2303,
-            "location_name": "Delhi",
-            "affected_population": 4200,
-            "ai_summary": "Flood response teams monitored embankments and assisted temporary relocation.",
-            "created_at": now - timedelta(days=5, hours=3),
-        },
-        {
-            "title": "Example: Warehouse fire response",
-            "description": "Historical example only. Smoke was reported from an industrial warehouse; fire services contained the site.",
-            "disaster_type": "fire",
-            "severity": 4,
-            "status": IncidentStatus.RESOLVED,
-            "latitude": 19.0760,
-            "longitude": 72.8777,
-            "location_name": "Mumbai",
-            "affected_population": 180,
-            "ai_summary": "Fire tenders, ambulance support, and perimeter control were coordinated.",
-            "created_at": now - timedelta(days=12, hours=6),
-        },
-        {
-            "title": "Example: Hillside landslide report",
-            "description": "Historical example only. Road blockage was reported after slope failure during rainfall.",
-            "disaster_type": "landslide",
-            "severity": 2,
-            "status": IncidentStatus.VERIFIED,
-            "latitude": 31.1048,
-            "longitude": 77.1734,
-            "location_name": "Shimla",
-            "affected_population": 75,
-            "ai_summary": "Road clearance and route diversion were tracked until access improved.",
-            "created_at": now - timedelta(days=20, hours=2),
-        },
-    ]
-
-    for item in examples:
-        created_at = item.pop("created_at")
-        incident = IncidentDB(
-            **item,
-            source="example_history",
-            reported_by="system_example",
-            created_at=created_at,
-            updated_at=created_at,
-        )
-        db.add(incident)
-        db.flush()
-        db.add(AlertDB(
-            incident_id=incident.id,
-            title=f"EXAMPLE HISTORY: {incident.title.replace('Example: ', '')}",
-            message=(
-                f"Example historical record for {incident.location_name}. "
-                f"Severity level {incident.severity}/5. {incident.ai_summary}"
-            ),
-            severity=incident.severity,
-            alert_type="example",
-            created_at=created_at,
-        ))
+    db.query(AlertDB).filter(AlertDB.incident_id.in_(example_ids)).delete(synchronize_session=False)
+    db.query(IncidentDB).filter(IncidentDB.id.in_(example_ids)).delete(synchronize_session=False)
     db.commit()
-    logger.info(f"Seeded {len(examples)} visible example incidents")
+    logger.info(f"Removed {len(example_ids)} example incidents from the local database")
 
 
 # ─── Mock Feed Callback ──────────────────────────────────────────────────────
@@ -298,15 +283,18 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 
 @app.get("/api/incidents", response_model=list[IncidentResponse])
 def get_incidents(limit: int = 50, include_mock: bool = False, db: Session = Depends(get_db)):
-    return visible_incidents_query(db, include_mock).order_by(IncidentDB.created_at.desc()).limit(limit).all()
+    return combined_incidents(db, limit=limit, include_mock=include_mock)
 
 
 @app.get("/api/incidents/{incident_id}", response_model=IncidentResponse)
 def get_incident(incident_id: int, db: Session = Depends(get_db)):
     incident = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Incident not found")
-    return incident
+    if incident:
+        return incident
+    for live_incident in live_source.fetch(limit=25).incidents:
+        if live_incident["id"] == incident_id:
+            return live_incident
+    raise HTTPException(status_code=404, detail="Incident not found")
 
 
 @app.post("/api/incidents", response_model=IncidentResponse)
@@ -369,7 +357,7 @@ def release_resource(
 
 @app.get("/api/alerts", response_model=list[AlertResponse])
 def get_alerts(limit: int = 30, include_mock: bool = False, db: Session = Depends(get_db)):
-    return visible_alerts_query(db, include_mock).order_by(AlertDB.created_at.desc()).limit(limit).all()
+    return combined_alerts(db, limit=limit, include_mock=include_mock)
 
 
 # ─── Chat (RAG) Endpoint ─────────────────────────────────────────────────────
@@ -384,36 +372,35 @@ async def chat(data: ChatRequest):
 
 @app.get("/api/stats", response_model=StatsResponse)
 def get_stats(db: Session = Depends(get_db)):
-    total = visible_incidents_query(db).count()
-    active = visible_incidents_query(db).filter(
-        IncidentDB.status.in_([IncidentStatus.REPORTED, IncidentStatus.VERIFIED, IncidentStatus.RESPONDING])
-    ).count()
-    resolved = visible_incidents_query(db).filter(IncidentDB.status == IncidentStatus.RESOLVED).count()
+    incidents = combined_incidents(db, limit=100)
+    total = len(incidents)
+    active = sum(1 for incident in incidents if incident["status"] in [IncidentStatus.REPORTED, IncidentStatus.VERIFIED, IncidentStatus.RESPONDING])
+    resolved = sum(1 for incident in incidents if incident["status"] == IncidentStatus.RESOLVED)
 
     total_res = db.query(ResourceDB).count()
     deployed_res = db.query(ResourceDB).filter(
         ResourceDB.status.in_([ResourceStatus.DEPLOYED, ResourceStatus.EN_ROUTE])
     ).count()
 
-    total_alerts = visible_alerts_query(db).count()
+    alerts = combined_alerts(db, limit=100)
+    total_alerts = len(alerts)
 
     # Severity distribution
-    sev_rows = visible_incidents_query(db).with_entities(
-        IncidentDB.severity, sql_func.count()
-    ).group_by(IncidentDB.severity).all()
-    severity_dist = {str(s): c for s, c in sev_rows}
+    severity_dist = {}
+    for incident in incidents:
+        severity_key = str(incident["severity"])
+        severity_dist[severity_key] = severity_dist.get(severity_key, 0) + 1
 
     # Type distribution
-    type_rows = visible_incidents_query(db).with_entities(
-        IncidentDB.disaster_type, sql_func.count()
-    ).group_by(IncidentDB.disaster_type).all()
-    type_dist = {t or "unknown": c for t, c in type_rows}
+    type_dist = {}
+    for incident in incidents:
+        incident_type = incident.get("disaster_type") or "unknown"
+        type_dist[incident_type] = type_dist.get(incident_type, 0) + 1
 
     # Recent incidents (last 10)
-    recent = visible_incidents_query(db).order_by(IncidentDB.created_at.desc()).limit(10).all()
     recent_trend = [
-        {"id": i.id, "title": i.title, "severity": i.severity, "type": i.disaster_type, "created_at": str(i.created_at)}
-        for i in recent
+        {"id": i["id"], "title": i["title"], "severity": i["severity"], "type": i.get("disaster_type"), "created_at": str(i["created_at"])}
+        for i in incidents[:10]
     ]
 
     return StatsResponse(
@@ -433,12 +420,13 @@ def get_stats(db: Session = Depends(get_db)):
 
 @app.get("/api/heatmap")
 def get_heatmap(db: Session = Depends(get_db)):
-    incidents = visible_incidents_query(db).filter(
-        IncidentDB.latitude.isnot(None),
-        IncidentDB.longitude.isnot(None),
-    ).all()
+    incidents = [
+        incident
+        for incident in combined_incidents(db, limit=100)
+        if incident.get("latitude") is not None and incident.get("longitude") is not None
+    ]
     return [
-        {"lat": i.latitude, "lng": i.longitude, "intensity": i.severity / 5.0}
+        {"lat": i["latitude"], "lng": i["longitude"], "intensity": i["severity"] / 5.0}
         for i in incidents
     ]
 
@@ -471,6 +459,7 @@ def health():
         "app": settings.APP_NAME,
         "model": settings.GROQ_MODEL,
         "mock_feed_enabled": settings.MOCK_FEED_ENABLED,
+        "live_incident_source": "Bhudev / IIT Roorkee (Uttarakhand)",
     }
 
 
