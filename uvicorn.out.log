@@ -53,3 +53,6 @@ INFO:     127.0.0.1:53101 - "GET /api/incidents?limit=50 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53101 - "GET /api/incidents?limit=50 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53101 - "GET /api/incidents?limit=50 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64905 - "GET /api/alerts?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51708 - "GET /api/alerts?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65126 - "GET /api/incidents?limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50173 - "GET /api/stats HTTP/1.1" 200 OK
