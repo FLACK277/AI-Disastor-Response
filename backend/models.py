@@ -169,6 +169,8 @@ class IncidentResponse(BaseModel):
     affected_population: int
     ai_summary: Optional[str] = None
     created_at: datetime
+    data_age: str = "Current"
+    is_old: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -193,6 +195,8 @@ class AlertResponse(BaseModel):
     severity: int
     alert_type: str
     created_at: datetime
+    data_age: str = "Current"
+    is_old: bool = False
     model_config = {"from_attributes": True}
 
 

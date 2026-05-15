@@ -6,6 +6,7 @@ REST API + WebSocket + Background Tasks
 import json
 import logging
 import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
@@ -88,7 +89,7 @@ def visible_incidents_query(db: Session, include_mock: bool = False):
         query = query.filter(
             or_(
                 IncidentDB.source.is_(None),
-                ~IncidentDB.source.in_(["mock_feed", "example_history"]),
+                IncidentDB.source != "example_history",
             )
         )
     return query
@@ -101,7 +102,8 @@ def visible_alerts_query(db: Session, include_mock: bool = False):
         query = query.outerjoin(IncidentDB, AlertDB.incident_id == IncidentDB.id).filter(
             or_(
                 AlertDB.incident_id.is_(None),
-                ~IncidentDB.source.in_(["mock_feed", "example_history"]),
+                IncidentDB.source.is_(None),
+                IncidentDB.source != "example_history",
             )
         )
     return query
@@ -121,25 +123,51 @@ def serialize_alert(record: AlertDB | dict) -> dict:
     return AlertResponse.model_validate(record).model_dump()
 
 
+def sort_datetime(value) -> datetime:
+    """Return a timezone-aware datetime for mixed DB/live feed timestamps."""
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min.replace(tzinfo=timezone.utc)
+    else:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def add_data_age(record: dict) -> dict:
+    """Mark records older than 24 hours without hiding them from the UI."""
+    item = dict(record)
+    is_old = sort_datetime(item.get("created_at")) < datetime.now(tz=timezone.utc) - timedelta(hours=24)
+    item["is_old"] = is_old
+    item["data_age"] = "Old" if is_old else "Current"
+    return item
+
+
 def combined_incidents(db: Session, limit: int = 50, include_mock: bool = False) -> list[dict]:
     """Return live Uttarakhand incidents plus stored user incidents."""
     stored = [
-        serialize_incident(incident)
+        add_data_age(serialize_incident(incident))
         for incident in visible_incidents_query(db, include_mock).order_by(IncidentDB.created_at.desc()).all()
     ]
-    live = live_source.fetch(limit=limit).incidents
-    combined = sorted(stored + live, key=lambda item: item["created_at"], reverse=True)
+    live = [add_data_age(incident) for incident in live_source.fetch(limit=limit).incidents]
+    combined = sorted(stored + live, key=lambda item: sort_datetime(item.get("created_at")), reverse=True)
     return combined[:limit]
 
 
 def combined_alerts(db: Session, limit: int = 30, include_mock: bool = False) -> list[dict]:
     """Return live-source alerts plus stored alerts."""
     stored = [
-        serialize_alert(alert)
+        add_data_age(serialize_alert(alert))
         for alert in visible_alerts_query(db, include_mock).order_by(AlertDB.created_at.desc()).all()
     ]
-    live = live_source.fetch(limit=limit).alerts
-    combined = sorted(stored + live, key=lambda item: item["created_at"], reverse=True)
+    live = [add_data_age(alert) for alert in live_source.fetch(limit=limit).alerts]
+    combined = sorted(stored + live, key=lambda item: sort_datetime(item.get("created_at")), reverse=True)
     return combined[:limit]
 
 
@@ -181,6 +209,29 @@ def purge_example_history(db: Session):
     db.query(IncidentDB).filter(IncidentDB.id.in_(example_ids)).delete(synchronize_session=False)
     db.commit()
     logger.info(f"Removed {len(example_ids)} example incidents from the local database")
+
+
+def purge_stale_mock_incidents(db: Session):
+    """Remove mock-feed incidents older than 24 hours to keep the dashboard fresh."""
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    stale_ids = [
+        row[0]
+        for row in db.query(IncidentDB.id)
+        .filter(IncidentDB.source == "mock_feed", IncidentDB.created_at < cutoff)
+        .all()
+    ]
+    if not stale_ids:
+        return
+
+    # Release resources tied to stale mock incidents
+    db.query(ResourceDB).filter(ResourceDB.assigned_incident_id.in_(stale_ids)).update(
+        {ResourceDB.status: ResourceStatus.AVAILABLE, ResourceDB.assigned_incident_id: None},
+        synchronize_session=False,
+    )
+    db.query(AlertDB).filter(AlertDB.incident_id.in_(stale_ids)).delete(synchronize_session=False)
+    db.query(IncidentDB).filter(IncidentDB.id.in_(stale_ids)).delete(synchronize_session=False)
+    db.commit()
+    logger.info(f"🧹 Purged {len(stale_ids)} stale mock incidents (older than 24h)")
 
 
 # ─── Mock Feed Callback ──────────────────────────────────────────────────────
@@ -459,8 +510,16 @@ def health():
         "app": settings.APP_NAME,
         "model": settings.GROQ_MODEL,
         "mock_feed_enabled": settings.MOCK_FEED_ENABLED,
-        "live_incident_source": "Bhudev / IIT Roorkee (Uttarakhand)",
+        "live_sources": ["USGS", "GDACS", "Open-Meteo", "Bhudev"],
     }
+
+
+# ─── Live Source Status ───────────────────────────────────────────────────────
+
+@app.get("/api/live-status")
+def get_live_status():
+    """Report which real-time data sources are active and their last fetch time."""
+    return live_source.source_status
 
 
 # ─── Serve Frontend ───────────────────────────────────────────────────────────

@@ -1,0 +1,117 @@
+INFO:     Started server process [45604]
+INFO:     Waiting for application startup.
+2026-05-15 17:17:00,478 [backend.main] INFO: \U0001f680 Starting AI Disaster Response Coordinator...
+2026-05-15 17:17:00,496 [backend.main] INFO: \u2705 Default demo users created (admin/rescuer/citizen — password: password123)
+2026-05-15 17:17:00,502 [backend.main] INFO: Mock feed disabled; waiting for real user/API reports
+2026-05-15 17:17:00,502 [backend.main] INFO: \u2705 All systems operational
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     ('127.0.0.1', 49733) - "WebSocket /ws" [accepted]
+2026-05-15 17:17:04,292 [backend.websocket_manager] INFO: WebSocket connected (room=global). Total: 1
+INFO:     connection open
+2026-05-15 17:17:22,753 [backend.websocket_manager] INFO: WebSocket disconnected. Total: 0
+INFO:     connection closed
+2026-05-15 17:17:24,146 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,146 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,230 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,231 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+INFO:     ('127.0.0.1', 64482) - "WebSocket /ws" [accepted]
+2026-05-15 17:17:24,251 [backend.websocket_manager] INFO: WebSocket connected (room=global). Total: 1
+INFO:     connection open
+2026-05-15 17:17:24,292 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,292 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,335 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,335 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,369 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,380 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,393 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,404 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,411 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,441 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,441 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,459 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,477 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,479 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,485 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:17:24,485 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+2026-05-15 17:17:24,497 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,503 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:17:24,503 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+2026-05-15 17:17:24,521 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,545 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,575 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,611 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,636 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:17:24,642 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:17:24,642 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+2026-05-15 17:18:50,324 [backend.websocket_manager] INFO: WebSocket disconnected. Total: 0
+INFO:     connection closed
+INFO:     Started server process [17144]
+INFO:     Waiting for application startup.
+2026-05-15 17:22:33,442 [backend.main] INFO: \U0001f680 Starting AI Disaster Response Coordinator...
+2026-05-15 17:22:33,461 [backend.main] INFO: \u2705 Default demo users created (admin/rescuer/citizen — password: password123)
+2026-05-15 17:22:33,465 [backend.main] INFO: Mock feed disabled; waiting for real user/API reports
+2026-05-15 17:22:33,465 [backend.main] INFO: \u2705 All systems operational
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-05-15 17:22:56,144 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,194 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,242 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,279 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,320 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,358 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,399 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,429 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:22:56,430 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:22:56,430 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+INFO:     ('127.0.0.1', 55689) - "WebSocket /ws" [accepted]
+2026-05-15 17:23:10,943 [backend.websocket_manager] INFO: WebSocket connected (room=global). Total: 1
+INFO:     connection open
+2026-05-15 17:23:37,316 [backend.websocket_manager] INFO: WebSocket disconnected. Total: 0
+INFO:     connection closed
+INFO:     ('127.0.0.1', 64411) - "WebSocket /ws" [accepted]
+2026-05-15 17:23:38,658 [backend.websocket_manager] INFO: WebSocket connected (room=global). Total: 1
+INFO:     connection open
+2026-05-15 17:24:56,583 [backend.websocket_manager] INFO: WebSocket disconnected. Total: 0
+INFO:     connection closed
+INFO:     Started server process [44700]
+INFO:     Waiting for application startup.
+2026-05-15 17:25:54,624 [backend.main] INFO: \U0001f680 Starting AI Disaster Response Coordinator...
+2026-05-15 17:25:54,645 [backend.main] INFO: \u2705 Default demo users created (admin/rescuer/citizen — password: password123)
+2026-05-15 17:25:54,647 [backend.main] INFO: Mock feed disabled; waiting for real user/API reports
+2026-05-15 17:25:54,648 [backend.main] INFO: \u2705 All systems operational
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-05-15 17:27:04,705 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,718 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,754 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,754 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,806 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,806 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,844 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,844 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+INFO:     ('127.0.0.1', 58299) - "WebSocket /ws" [accepted]
+2026-05-15 17:27:04,876 [backend.websocket_manager] INFO: WebSocket connected (room=global). Total: 1
+INFO:     connection open
+2026-05-15 17:27:04,880 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,880 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,912 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,918 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,948 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,961 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,973 [backend.live_sources] ERROR: USGS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,983 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:04,989 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:27:04,989 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+2026-05-15 17:27:04,995 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,002 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:27:05,003 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources
+2026-05-15 17:27:05,014 [backend.live_sources] ERROR: GDACS fetch failed: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,045 [backend.live_sources] WARNING: Weather check failed for Dehradun: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,094 [backend.live_sources] WARNING: Weather check failed for Chamoli: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,142 [backend.live_sources] WARNING: Weather check failed for Pithoragarh: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,183 [backend.live_sources] WARNING: Weather check failed for Nainital: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,230 [backend.live_sources] WARNING: Weather check failed for Uttarkashi: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,267 [backend.live_sources] WARNING: Weather check failed for Rudraprayag: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+2026-05-15 17:27:05,273 [backend.live_sources] ERROR: Bhudev fetch failed: [WinError 2] The system cannot find the file specified
+2026-05-15 17:27:05,273 [backend.live_sources] INFO: \U0001f4e1 Live feed: 0 incidents, 0 alerts from 1 sources

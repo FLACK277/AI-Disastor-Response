@@ -188,6 +188,12 @@ body {
 .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
 .status-dot.disconnected { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
+.last-refreshed {
+  font-size: 11px; color: var(--text-muted); font-weight: 500;
+  padding: 4px 10px; background: var(--bg-glass); border: 1px solid var(--border);
+  border-radius: 8px; white-space: nowrap;
+}
+
 /* ─── Pages ─── */
 .page { display: none; padding: 24px; overflow-y: auto; flex: 1; }
 .page.active { display: block; }
@@ -283,6 +289,10 @@ tr:hover td { background: var(--bg-glass); }
 .status-verified { background: rgba(139,92,246,0.15); color: var(--purple); }
 .status-contained { background: rgba(6,182,212,0.15); color: var(--cyan); }
 .status-resolved { background: rgba(16,185,129,0.15); color: var(--green); }
+
+.age-badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.age-badge.current { background: rgba(16,185,129,0.15); color: var(--green); }
+.age-badge.old { background: rgba(148,163,184,0.15); color: var(--text-muted); }
 
 /* ─── Resources ─── */
 .resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 16px; }

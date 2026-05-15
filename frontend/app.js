@@ -21,6 +21,13 @@ let state = {
   ws: null,
   map: null,
   markers: [],
+  refreshInterval: null,
+  wsReconnectTimeout: null,
+  wsPingInterval: null,
+  sessionId: 0,
+  dashboardLoadId: 0,
+  chatRequestId: 0,
+  chatAbortController: null,
 };
 
 // ─── Init ───
@@ -80,17 +87,49 @@ function fillLogin(user, pass) {
 }
 
 function logout() {
+  state.sessionId += 1;
   state.token = null;
   state.user = null;
   localStorage.removeItem('adrc_token');
   localStorage.removeItem('adrc_user');
-  if (state.ws) state.ws.close();
+  stopRealtimeUpdates();
   document.getElementById('login-screen').classList.add('active');
   document.getElementById('dashboard-screen').classList.remove('active');
 }
 
+function stopRealtimeUpdates() {
+  if (state.refreshInterval) {
+    clearInterval(state.refreshInterval);
+    state.refreshInterval = null;
+  }
+  if (state.wsReconnectTimeout) {
+    clearTimeout(state.wsReconnectTimeout);
+    state.wsReconnectTimeout = null;
+  }
+  if (state.wsPingInterval) {
+    clearInterval(state.wsPingInterval);
+    state.wsPingInterval = null;
+  }
+  if (state.chatAbortController) {
+    state.chatAbortController.abort();
+    state.chatAbortController = null;
+  }
+  if (state.ws) {
+    const ws = state.ws;
+    state.ws = null;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.close();
+  }
+}
+
 // ─── Dashboard ───
 function showDashboard() {
+  stopRealtimeUpdates();
+  state.sessionId += 1;
+  const sessionId = state.sessionId;
   document.getElementById('login-screen').classList.remove('active');
   document.getElementById('dashboard-screen').classList.add('active');
   
@@ -101,8 +140,14 @@ function showDashboard() {
   document.getElementById('user-avatar').textContent = (u.full_name || u.username)[0].toUpperCase();
   
   initMap();
-  connectWebSocket();
-  loadDashboardData();
+  connectWebSocket(sessionId);
+  loadDashboardData(sessionId);
+  
+  // Auto-refresh every 2 minutes for real-time data
+  if (state.refreshInterval) clearInterval(state.refreshInterval);
+  state.refreshInterval = setInterval(() => {
+    loadDashboardData(sessionId);
+  }, 120000);
 }
 
 // ─── Navigation ───
@@ -138,13 +183,16 @@ async function apiFetch(path, opts = {}) {
 }
 
 // ─── Load Data ───
-async function loadDashboardData() {
+async function loadDashboardData(sessionId = state.sessionId) {
+  if (!state.token || sessionId !== state.sessionId) return;
+  const loadId = ++state.dashboardLoadId;
   try {
     const [stats, incidents, alerts] = await Promise.all([
       apiFetch('/api/stats'),
       apiFetch('/api/incidents?limit=50'),
       apiFetch('/api/alerts?limit=20'),
     ]);
+    if (sessionId !== state.sessionId || loadId !== state.dashboardLoadId) return;
     
     // Update stats
     document.getElementById('stat-total').textContent = stats.total_incidents;
@@ -168,8 +216,11 @@ async function loadDashboardData() {
     renderSeverityChart(stats.severity_distribution);
     renderTypeChart(stats.type_distribution);
   } catch (err) {
+    if (sessionId !== state.sessionId || loadId !== state.dashboardLoadId) return;
     console.error('Failed to load data:', err);
   }
+  if (sessionId !== state.sessionId || loadId !== state.dashboardLoadId) return;
+  updateLastRefreshed();
 }
 
 // ─── Map ───
@@ -308,6 +359,7 @@ async function refreshIncidents() {
         <td><span class="severity-badge sev-${inc.severity}">Level ${inc.severity}</span></td>
         <td>📍 ${inc.location_name}</td>
         <td><span class="status-badge status-${inc.status}">${inc.status}</span></td>
+        <td><span class="age-badge ${inc.is_old ? 'old' : 'current'}">${inc.data_age || (inc.is_old ? 'Old' : 'Current')}</span></td>
         <td>${timeAgo(inc.created_at)}</td>
       </tr>
     `).join('');
@@ -420,6 +472,13 @@ async function handleChat(e) {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg) return;
+
+  if (state.chatAbortController) {
+    state.chatAbortController.abort();
+  }
+  const requestId = ++state.chatRequestId;
+  const controller = new AbortController();
+  state.chatAbortController = controller;
   
   addChatMessage(msg, 'user');
   input.value = '';
@@ -430,7 +489,9 @@ async function handleChat(e) {
     const data = await apiFetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ message: msg }),
+      signal: controller.signal,
     });
+    if (requestId !== state.chatRequestId) return;
     removeChatMessage(loadingId);
     let response = data.response;
     if (data.sources && data.sources.length) {
@@ -438,14 +499,22 @@ async function handleChat(e) {
     }
     addChatMessage(response, 'bot');
   } catch (err) {
+    if (err.name === 'AbortError' || requestId !== state.chatRequestId) {
+      removeChatMessage(loadingId);
+      return;
+    }
     removeChatMessage(loadingId);
     addChatMessage('Sorry, I encountered an error. Please try again.', 'bot');
+  } finally {
+    if (requestId === state.chatRequestId) {
+      state.chatAbortController = null;
+    }
   }
 }
 
 function addChatMessage(text, sender, isLoading = false) {
   const container = document.getElementById('chat-messages');
-  const id = 'msg-' + Date.now();
+  const id = 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   const div = document.createElement('div');
   div.className = `chat-msg ${sender}`;
   div.id = id;
@@ -465,52 +534,67 @@ function removeChatMessage(id) {
 }
 
 // ─── WebSocket ───
-function connectWebSocket() {
+function connectWebSocket(sessionId = state.sessionId) {
+  if (!state.token || sessionId !== state.sessionId) return;
   const wsUrl = API.replace('http', 'ws') + '/ws';
   const statusDot = document.querySelector('#ws-status .status-dot');
   
   try {
-    state.ws = new WebSocket(wsUrl);
+    if (state.ws && state.ws.readyState !== WebSocket.CLOSED) {
+      state.ws.close();
+    }
+
+    const ws = new WebSocket(wsUrl);
+    state.ws = ws;
     
-    state.ws.onopen = () => {
+    ws.onopen = () => {
+      if (sessionId !== state.sessionId || state.ws !== ws) return;
       statusDot.className = 'status-dot connected';
       console.log('✅ WebSocket connected');
     };
     
-    state.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (sessionId !== state.sessionId || state.ws !== ws) return;
       const msg = JSON.parse(event.data);
-      handleWSMessage(msg);
+      handleWSMessage(msg, sessionId);
     };
     
-    state.ws.onclose = () => {
+    ws.onclose = () => {
+      if (sessionId !== state.sessionId || state.ws !== ws) return;
       statusDot.className = 'status-dot disconnected';
       console.log('WebSocket disconnected, reconnecting in 5s...');
-      setTimeout(connectWebSocket, 5000);
+      state.wsReconnectTimeout = setTimeout(() => connectWebSocket(sessionId), 5000);
     };
     
-    state.ws.onerror = () => {
+    ws.onerror = () => {
+      if (sessionId !== state.sessionId || state.ws !== ws) return;
       statusDot.className = 'status-dot disconnected';
     };
     
     // Ping every 30s
-    setInterval(() => {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.send(JSON.stringify({ type: 'ping' }));
+    if (state.wsPingInterval) clearInterval(state.wsPingInterval);
+    state.wsPingInterval = setInterval(() => {
+      if (sessionId !== state.sessionId || state.ws !== ws) return;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
       }
     }, 30000);
   } catch (err) {
     console.error('WebSocket error:', err);
-    setTimeout(connectWebSocket, 5000);
+    if (sessionId === state.sessionId) {
+      state.wsReconnectTimeout = setTimeout(() => connectWebSocket(sessionId), 5000);
+    }
   }
 }
 
-function handleWSMessage(msg) {
+function handleWSMessage(msg, sessionId = state.sessionId) {
+  if (sessionId !== state.sessionId) return;
   switch (msg.type) {
     case 'new_incident':
       showToast(`⚠️ New: ${msg.data.title}`, 'warning');
       state.incidents.unshift(msg.data);
       updateMapMarkers(state.incidents);
-      loadDashboardData();
+      loadDashboardData(sessionId);
       break;
     case 'new_alert':
       showToast(`🔔 ${msg.data.title}`, 'info');
@@ -544,4 +628,13 @@ function showToast(message, type = 'info') {
   toast.innerHTML = `<span>${icons[type] || ''}</span><span>${message}</span>`;
   container.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 5000);
+}
+
+function updateLastRefreshed() {
+  const el = document.getElementById('last-refreshed');
+  if (el) {
+    const now = new Date();
+    el.textContent = `Updated: ${now.toLocaleTimeString()}`;
+    el.title = `Dashboard auto-refreshes every 2 minutes with real-time data from USGS, GDACS, Open-Meteo, and Bhudev`;
+  }
 }
