@@ -13,10 +13,16 @@ stays responsive without hammering upstream APIs on every page load.
 
 from __future__ import annotations
 
+import hashlib
+import html
 import logging
 import re
 import time
 import subprocess
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+from urllib.parse import quote_plus
+
 import httpx
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -26,19 +32,20 @@ logger = logging.getLogger(__name__)
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-# South-Asia bounding box for USGS (India + neighbours)
+# Uttarakhand bounding box for USGS earthquake queries.
 USGS_URL = (
     "https://earthquake.usgs.gov/fdsnws/event/1/query"
-    "?format=geojson&limit=20&orderby=time"
-    "&minlatitude=6&maxlatitude=38"
-    "&minlongitude=68&maxlongitude=98"
+    "?format=geojson&limit=30&orderby=time"
+    "&minlatitude=28.7&maxlatitude=31.6"
+    "&minlongitude=77.5&maxlongitude=81.2"
+    "&minmagnitude=1.5"
 )
 
 # GDACS — earthquakes, floods, cyclones affecting India (last 30 days)
 GDACS_URL = (
     "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
     "?alertlevel=green;orange;red"
-    "&eventlist=EQ,TC,FL"
+    "&eventlist=EQ,TC,FL,VO,DR"
     "&country=IND"
 )
 
@@ -71,6 +78,76 @@ REGION_COORDS = {
     "nepal": (28.3949, 81.0000),
 }
 
+UTTARAKHAND_KEYWORDS = {
+    "uttarakhand",
+    "dehradun",
+    "haridwar",
+    "nainital",
+    "almora",
+    "bageshwar",
+    "chamoli",
+    "champawat",
+    "pauri",
+    "garhwal",
+    "pithoragarh",
+    "rudraprayag",
+    "tehri",
+    "udham singh nagar",
+    "udhamsingh nagar",
+    "uttarkashi",
+    "rishikesh",
+    "haldwani",
+    "kedarnath",
+    "badrinath",
+    "joshimath",
+}
+
+DISASTER_KEYWORD_TYPES = {
+    "earthquake": "earthquake",
+    "tremor": "earthquake",
+    "flood": "flood",
+    "flash flood": "flood",
+    "cloudburst": "flood",
+    "waterlogging": "flood",
+    "heavy rain": "flood",
+    "landslide": "landslide",
+    "rockfall": "landslide",
+    "forest fire": "fire",
+    "wildfire": "fire",
+    "fire": "fire",
+    "avalanche": "landslide",
+    "glacier": "other",
+    "heatwave": "other",
+    "heat wave": "other",
+    "industrial": "industrial",
+    "chemical": "industrial",
+    "gas leak": "industrial",
+}
+
+TRUSTED_NEWS_SOURCES = {
+    "PTI",
+    "Press Trust of India",
+    "ANI News",
+    "The Hindu",
+    "Hindustan Times",
+    "Indian Express",
+    "The Indian Express",
+    "Times of India",
+    "The Times of India",
+    "NDTV",
+    "India Today",
+    "Business Standard",
+    "Deccan Herald",
+    "The Economic Times",
+    "News18",
+    "Down To Earth Magazine",
+}
+
+NEWS_QUERIES = [
+    'Uttarakhand (landslide OR flood OR cloudburst OR earthquake OR "forest fire" OR wildfire OR avalanche OR heatwave OR disaster) when:7d',
+    'Uttarakhand disaster response evacuation casualties latest when:7d',
+]
+
 # WMO weather codes that indicate severe/dangerous conditions
 SEVERE_WEATHER_CODES = {
     55: "Heavy drizzle",
@@ -87,8 +164,9 @@ SEVERE_WEATHER_CODES = {
 }
 
 # Default cache TTL (seconds)
-DEFAULT_CACHE_TTL = 300  # 5 minutes
-DEFAULT_MAX_EVENT_AGE_HOURS = 24
+DEFAULT_CACHE_TTL = 60  # 1 minute
+RECENT_EVENT_WINDOW_DAYS = 7
+DEFAULT_MAX_EVENT_AGE_HOURS = 24 * RECENT_EVENT_WINDOW_DAYS
 
 HTTP_TIMEOUT = 20  # seconds
 
@@ -194,12 +272,24 @@ class RealTimeLiveSource:
             logger.error(f"Bhudev fetch failed: {e}")
             self._last_status["bhudev"] = {"ok": False, "error": str(e)}
 
+        # 5. Trusted recent news for very fresh local disaster reports
+        try:
+            news = self._fetch_recent_news()
+            all_incidents.extend(news.incidents)
+            all_alerts.extend(news.alerts)
+            self._last_status["recent_news"] = {"ok": True, "count": len(news.incidents)}
+        except Exception as e:
+            logger.error(f"Recent news fetch failed: {e}")
+            self._last_status["recent_news"] = {"ok": False, "error": str(e)}
+
+        all_incidents = self._dedupe_incidents([item for item in all_incidents if self._is_recent(item)])
+        all_alerts = [item for item in all_alerts if self._is_recent(item)]
         all_incidents = self._annotate_age(all_incidents)
         all_alerts = self._annotate_age(all_alerts)
 
         # Sort everything newest-first
-        all_incidents.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        all_alerts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        all_incidents.sort(key=self._sort_key, reverse=True)
+        all_alerts.sort(key=self._sort_key, reverse=True)
 
         logger.info(
             f"📡 Live feed: {len(all_incidents)} incidents, {len(all_alerts)} alerts "
@@ -211,7 +301,8 @@ class RealTimeLiveSource:
 
     def _fetch_usgs(self) -> LiveFeedBundle:
         """Fetch recent earthquakes from USGS FDSN web-service (GeoJSON)."""
-        data = self._http_get_json(USGS_URL)
+        start_time = (datetime.now(tz=timezone.utc) - timedelta(days=RECENT_EVENT_WINDOW_DAYS)).strftime("%Y-%m-%d")
+        data = self._http_get_json(f"{USGS_URL}&starttime={start_time}")
         incidents: list[dict] = []
 
         for feature in data.get("features", []):
@@ -227,6 +318,8 @@ class RealTimeLiveSource:
                 created_at = datetime.fromtimestamp(event_time / 1000, tz=timezone.utc).isoformat()
             else:
                 created_at = datetime.now(tz=timezone.utc).isoformat()
+            if not self._is_recent({"created_at": created_at}):
+                continue
 
             incident = {
                 "id": self._stable_id("usgs", props.get("code", place), str(event_time)),
@@ -238,16 +331,19 @@ class RealTimeLiveSource:
                 "disaster_type": "earthquake",
                 "severity": self._magnitude_to_severity(mag),
                 "status": "reported",
+                "status_marker": "ACTIVE",
                 "latitude": lat,
                 "longitude": lng,
                 "location_name": place,
                 "reported_by": "USGS",
                 "source": "live_usgs",
+                "source_url": props.get("url"),
                 "affected_population": 0,
                 "ai_summary": (
                     f"Real-time earthquake M{mag} detected at {place}. "
                     f"Depth: {depth}km. Data from USGS."
                 ),
+                "latest_update": created_at,
                 "created_at": created_at,
             }
             incidents.append(incident)
@@ -259,22 +355,20 @@ class RealTimeLiveSource:
 
     def _fetch_gdacs(self) -> LiveFeedBundle:
         """Fetch recent disaster events from GDACS GeoJSON API."""
-        # Build dynamic date range: last 30 days
         now = datetime.now(tz=timezone.utc)
-        from_date = now.replace(day=1).strftime("%Y-%m-%d") if now.day < 30 else (
-            now.replace(month=now.month - 1 if now.month > 1 else 12, year=now.year if now.month > 1 else now.year - 1)
-        ).strftime("%Y-%m-%d")
+        from_date = (now - timedelta(days=RECENT_EVENT_WINDOW_DAYS)).strftime("%Y-%m-%d")
         to_date = now.strftime("%Y-%m-%d")
         url = f"{GDACS_URL}&fromDate={from_date}&toDate={to_date}"
 
         data = self._http_get_json(url)
         incidents: list[dict] = []
-        event_type_map = {"EQ": "earthquake", "FL": "flood", "TC": "cyclone", "VO": "other"}
+        event_type_map = {"EQ": "earthquake", "FL": "flood", "TC": "cyclone", "VO": "other", "DR": "other"}
 
         for feature in data.get("features", []):
             props = feature.get("properties", {})
             coords = feature.get("geometry", {}).get("coordinates", [None, None])
-            lng, lat = coords[0], coords[1] if len(coords) >= 2 else (None, None)
+            lng = coords[0] if len(coords) >= 1 else None
+            lat = coords[1] if len(coords) >= 2 else None
 
             from_date_str = props.get("fromdate", "")
             alert_level = props.get("alertlevel", "Green")
@@ -283,6 +377,9 @@ class RealTimeLiveSource:
             event_type = event_type_map.get(props.get("eventtype", ""), "other")
             country = props.get("country", "Unknown")
             name = props.get("name", f"Disaster in {country}")
+            description_text = f"{name} {country} {props.get('htmldescription', '')}"
+            if not self._is_uttarakhand_item(description_text, lat, lng):
+                continue
 
             # Map GDACS alert level to severity
             severity = {"Green": 2, "Orange": 4, "Red": 5}.get(alert_level, 1)
@@ -299,6 +396,8 @@ class RealTimeLiveSource:
                     ).isoformat()
                 except ValueError:
                     created_at = datetime.now(tz=timezone.utc).isoformat()
+            if not self._is_recent({"created_at": created_at}):
+                continue
 
             incident = {
                 "id": self._stable_id("gdacs", str(props.get("eventid", "")), from_date_str),
@@ -311,16 +410,19 @@ class RealTimeLiveSource:
                 "disaster_type": event_type,
                 "severity": severity,
                 "status": "reported",
+                "status_marker": "ACTIVE" if alert_level in {"Green", "Orange"} else "ESCALATING",
                 "latitude": lat,
                 "longitude": lng,
                 "location_name": country,
                 "reported_by": "GDACS / UN",
                 "source": "live_gdacs",
+                "source_url": props.get("url", {}).get("report") if isinstance(props.get("url"), dict) else None,
                 "affected_population": 0,
                 "ai_summary": (
                     f"GDACS {alert_level} alert: {name}. "
                     f"{severity_data.get('severitytext', '')}."
                 ),
+                "latest_update": props.get("datemodified") or created_at,
                 "created_at": created_at,
             }
             incidents.append(incident)
@@ -384,16 +486,19 @@ class RealTimeLiveSource:
                     "disaster_type": "flood" if rain > 30 else "cyclone" if wind > 60 else "other",
                     "severity": severity,
                     "status": "reported",
+                    "status_marker": "ACTIVE",
                     "latitude": point["lat"],
                     "longitude": point["lon"],
                     "location_name": f"{point['name']}, Uttarakhand",
                     "reported_by": "Open-Meteo",
                     "source": "live_weather",
+                    "source_url": "https://open-meteo.com/",
                     "affected_population": 0,
                     "ai_summary": (
                         f"Current severe weather: {description} at {point['name']}. "
                         f"Temp {temp}°C, Rain {rain}mm, Wind {wind}km/h."
                     ),
+                    "latest_update": current_time,
                     "created_at": current_time if "T" in str(current_time) else datetime.now(tz=timezone.utc).isoformat(),
                 }
                 incidents.append(incident)
@@ -442,6 +547,8 @@ class RealTimeLiveSource:
             magnitude = float(match.group("magnitude"))
             depth_km = float(match.group("depth"))
             created_at = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+            if not self._is_recent({"created_at": created_at.isoformat()}):
+                continue
             lat, lng = self._lookup_coords(region)
 
             incidents.append({
@@ -454,16 +561,19 @@ class RealTimeLiveSource:
                 "disaster_type": "earthquake",
                 "severity": self._magnitude_to_severity(magnitude),
                 "status": "reported",
+                "status_marker": "ACTIVE",
                 "latitude": lat,
                 "longitude": lng,
                 "location_name": region,
                 "reported_by": "Bhudev / IIT Roorkee",
                 "source": "live_bhudev",
+                "source_url": BHUDEV_URL,
                 "affected_population": 0,
                 "ai_summary": (
                     f"Local earthquake near {region}: M{magnitude}, depth {depth_km}km. "
                     f"Data from IIT Roorkee EEW network."
                 ),
+                "latest_update": created_at.isoformat(),
                 "created_at": created_at.isoformat(),
             })
 
@@ -473,15 +583,103 @@ class RealTimeLiveSource:
         alerts = [self._incident_to_alert(inc, "BHUDEV EEW") for inc in incidents]
         return LiveFeedBundle(incidents=incidents, alerts=alerts)
 
+    def _fetch_recent_news(self) -> LiveFeedBundle:
+        """Fetch last-7-days Uttarakhand disaster updates from trusted news RSS."""
+        incidents: list[dict] = []
+        seen_links: set[str] = set()
+
+        for query in NEWS_QUERIES:
+            url = (
+                "https://news.google.com/rss/search"
+                f"?q={quote_plus(query)}&hl=en-IN&gl=IN&ceid=IN:en"
+            )
+            xml_text = self._http_get_text(url)
+            root = ET.fromstring(xml_text)
+
+            for item in root.findall("./channel/item"):
+                raw_title = item.findtext("title", default="")
+                raw_description = item.findtext("description", default="")
+                source_name = item.findtext("source", default="Google News")
+                link = item.findtext("link", default="")
+                pub_date = item.findtext("pubDate", default="")
+
+                title = self._clean_text(raw_title)
+                description = self._clean_text(raw_description)
+                source_name = self._clean_text(source_name)
+                combined_text = f"{title} {description}"
+
+                if link in seen_links:
+                    continue
+                if not self._is_trusted_news_source(source_name):
+                    continue
+                if not self._is_uttarakhand_item(combined_text, None, None):
+                    continue
+                if self._is_historical_or_drill(combined_text):
+                    continue
+
+                disaster_type = self._infer_disaster_type(combined_text)
+                if not disaster_type:
+                    continue
+
+                published_at = self._parse_rss_datetime(pub_date)
+                if not published_at or not self._is_recent({"created_at": published_at.isoformat()}):
+                    continue
+
+                seen_links.add(link)
+                location_name, lat, lng = self._infer_location(combined_text)
+                severity = self._news_severity(combined_text)
+                status_marker = self._status_marker_from_text(combined_text)
+
+                incidents.append({
+                    "id": self._stable_id("news", link or title, published_at.isoformat()),
+                    "title": title,
+                    "description": (
+                        f"{title}. Latest verified media update from {source_name}. "
+                        f"{description[:280]}"
+                    ).strip(),
+                    "disaster_type": disaster_type,
+                    "severity": severity,
+                    "status": "verified",
+                    "status_marker": status_marker,
+                    "latitude": lat,
+                    "longitude": lng,
+                    "location_name": location_name,
+                    "reported_by": source_name,
+                    "source": "live_recent_news",
+                    "source_url": link,
+                    "affected_population": self._extract_people_count(combined_text),
+                    "ai_summary": (
+                        f"{status_marker}: {disaster_type.title()} update in {location_name}. "
+                        f"Source: {source_name}."
+                    ),
+                    "latest_update": published_at.isoformat(),
+                    "created_at": published_at.isoformat(),
+                })
+
+                if len(incidents) >= 12:
+                    break
+
+        alerts = [self._incident_to_alert(inc, "UTTARAKHAND UPDATE") for inc in incidents]
+        return LiveFeedBundle(incidents=incidents, alerts=alerts)
+
     # ── HTTP helpers ──────────────────────────────────────────────────────
 
     @staticmethod
     def _http_get_json(url: str) -> dict:
         """Synchronous HTTP GET returning JSON. Uses httpx for reliability."""
-        with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+        headers = {"User-Agent": "AI-Disaster-Response/1.0"}
+        with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True, headers=headers) as client:
             resp = client.get(url)
             resp.raise_for_status()
             return resp.json()
+
+    @staticmethod
+    def _http_get_text(url: str) -> str:
+        headers = {"User-Agent": "AI-Disaster-Response/1.0"}
+        with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True, headers=headers) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            return resp.text
 
     @staticmethod
     def _fetch_html_via_powershell(url: str) -> str:
@@ -502,7 +700,8 @@ class RealTimeLiveSource:
     @staticmethod
     def _stable_id(source: str, key1: str, key2: str) -> int:
         raw = f"{source}:{key1}:{key2}"
-        return abs(hash(raw)) % 900_000_000 + 100_000_000
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        return int(digest[:12], 16) % 900_000_000 + 100_000_000
 
     @staticmethod
     def _parse_created_at(value: object) -> datetime | None:
@@ -519,6 +718,136 @@ class RealTimeLiveSource:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
+
+    @staticmethod
+    def _parse_rss_datetime(value: str) -> datetime | None:
+        if not value:
+            return None
+        try:
+            dt = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def _is_recent(self, item: dict) -> bool:
+        created_at = self._parse_created_at(item.get("created_at"))
+        if created_at is None:
+            return True
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=RECENT_EVENT_WINDOW_DAYS)
+        return created_at >= cutoff
+
+    def _sort_key(self, item: dict) -> tuple[datetime, int]:
+        created_at = self._parse_created_at(item.get("created_at"))
+        if created_at is None:
+            created_at = datetime.min.replace(tzinfo=timezone.utc)
+        return created_at, int(item.get("severity") or 0)
+
+    def _dedupe_incidents(self, incidents: list[dict]) -> list[dict]:
+        deduped: list[dict] = []
+        seen: set[str] = set()
+        for incident in incidents:
+            created_at = self._parse_created_at(incident.get("created_at"))
+            day = created_at.strftime("%Y-%m-%d") if created_at else ""
+            key = "|".join([
+                str(incident.get("source_url") or ""),
+                str(incident.get("disaster_type") or ""),
+                str(incident.get("location_name") or "").lower(),
+                str(incident.get("title") or "").lower()[:80],
+                day,
+            ])
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(incident)
+        return deduped
+
+    @staticmethod
+    def _clean_text(value: str) -> str:
+        text = re.sub(r"<[^>]+>", " ", value or "")
+        text = html.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    @staticmethod
+    def _is_trusted_news_source(source_name: str) -> bool:
+        source = (source_name or "").strip().lower()
+        return any(source == trusted.lower() for trusted in TRUSTED_NEWS_SOURCES)
+
+    @staticmethod
+    def _is_uttarakhand_item(text: str, lat: float | None, lng: float | None) -> bool:
+        if lat is not None and lng is not None:
+            if 28.7 <= float(lat) <= 31.6 and 77.5 <= float(lng) <= 81.2:
+                return True
+        normalized = (text or "").lower()
+        return any(keyword in normalized for keyword in UTTARAKHAND_KEYWORDS)
+
+    @staticmethod
+    def _infer_disaster_type(text: str) -> str | None:
+        normalized = (text or "").lower()
+        for keyword, disaster_type in DISASTER_KEYWORD_TYPES.items():
+            if keyword in normalized:
+                return disaster_type
+        return None
+
+    @staticmethod
+    def _is_historical_or_drill(text: str) -> bool:
+        normalized = (text or "").lower()
+        blocked_terms = [
+            "anniversary",
+            "on this day",
+            "2013 kedarnath",
+            "kedarnath tragedy",
+            "mock drill",
+            "preparedness drill",
+            "recap",
+        ]
+        return any(term in normalized for term in blocked_terms)
+
+    @staticmethod
+    def _infer_location(text: str) -> tuple[str, float | None, float | None]:
+        normalized = (text or "").lower()
+        for region, coords in REGION_COORDS.items():
+            if region in normalized:
+                return f"{region.title()}, Uttarakhand", coords[0], coords[1]
+        return "Uttarakhand", UTTARAKHAND_WEATHER_POINTS[0]["lat"], UTTARAKHAND_WEATHER_POINTS[0]["lon"]
+
+    @staticmethod
+    def _news_severity(text: str) -> int:
+        normalized = (text or "").lower()
+        if any(word in normalized for word in ["red alert", "dead", "death", "killed", "missing", "evacuated", "trapped"]):
+            return 4
+        if any(word in normalized for word in ["orange alert", "warning", "landslide", "cloudburst", "flash flood", "forest fire"]):
+            return 3
+        return 2
+
+    @staticmethod
+    def _status_marker_from_text(text: str) -> str:
+        normalized = (text or "").lower()
+        if any(word in normalized for word in ["worsen", "rising", "red alert", "evacuated", "trapped", "missing"]):
+            return "ESCALATING"
+        if any(word in normalized for word in ["contained", "under control"]):
+            return "CONTAINED"
+        if any(word in normalized for word in ["reopened", "restored", "rescued", "no longer"]):
+            return "RESOLVED"
+        return "ACTIVE"
+
+    @staticmethod
+    def _extract_people_count(text: str) -> int:
+        normalized = (text or "").lower()
+        patterns = [
+            r"(\d+)\s+(?:people\s+)?evacuated",
+            r"(\d+)\s+(?:people\s+)?trapped",
+            r"(\d+)\s+(?:people\s+)?missing",
+            r"(\d+)\s+(?:people\s+)?killed",
+            r"(\d+)\s+(?:people\s+)?dead",
+        ]
+        total = 0
+        for pattern in patterns:
+            for match in re.findall(pattern, normalized):
+                total += int(match)
+        return total
 
     def _is_old(self, item: dict) -> bool:
         cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=DEFAULT_MAX_EVENT_AGE_HOURS)
@@ -557,6 +886,8 @@ class RealTimeLiveSource:
             "message": incident["description"],
             "severity": incident["severity"],
             "alert_type": "live_feed",
+            "status_marker": incident.get("status_marker", "ACTIVE"),
+            "source_url": incident.get("source_url"),
             "created_at": incident["created_at"],
         }
 

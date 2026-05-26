@@ -141,9 +141,9 @@ def sort_datetime(value) -> datetime:
 
 
 def add_data_age(record: dict) -> dict:
-    """Mark records older than 24 hours without hiding them from the UI."""
+    """Mark records outside the last 7 days without hiding them from the UI."""
     item = dict(record)
-    is_old = sort_datetime(item.get("created_at")) < datetime.now(tz=timezone.utc) - timedelta(hours=24)
+    is_old = sort_datetime(item.get("created_at")) < datetime.now(tz=timezone.utc) - timedelta(days=7)
     item["is_old"] = is_old
     item["data_age"] = "Old" if is_old else "Current"
     return item
@@ -510,7 +510,7 @@ def health():
         "app": settings.APP_NAME,
         "model": settings.GROQ_MODEL,
         "mock_feed_enabled": settings.MOCK_FEED_ENABLED,
-        "live_sources": ["USGS", "GDACS", "Open-Meteo", "Bhudev"],
+        "live_sources": ["USGS Uttarakhand bbox", "GDACS", "Open-Meteo", "Bhudev", "Recent trusted news"],
     }
 
 

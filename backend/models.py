@@ -168,6 +168,9 @@ class IncidentResponse(BaseModel):
     source: str
     affected_population: int
     ai_summary: Optional[str] = None
+    status_marker: Optional[str] = None
+    source_url: Optional[str] = None
+    latest_update: Optional[datetime] = None
     created_at: datetime
     data_age: str = "Current"
     is_old: bool = False
@@ -194,6 +197,8 @@ class AlertResponse(BaseModel):
     message: str
     severity: int
     alert_type: str
+    status_marker: Optional[str] = None
+    source_url: Optional[str] = None
     created_at: datetime
     data_age: str = "Current"
     is_old: bool = False

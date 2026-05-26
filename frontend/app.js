@@ -143,11 +143,11 @@ function showDashboard() {
   connectWebSocket(sessionId);
   loadDashboardData(sessionId);
   
-  // Auto-refresh every 2 minutes for real-time data
+  // Auto-refresh every minute for fresh Uttarakhand disaster updates
   if (state.refreshInterval) clearInterval(state.refreshInterval);
   state.refreshInterval = setInterval(() => {
     loadDashboardData(sessionId);
-  }, 120000);
+  }, 60000);
 }
 
 // ─── Navigation ───
@@ -269,7 +269,8 @@ function updateMapMarkers(incidents) {
           <span style="color:${color};font-weight:700">Severity: ${inc.severity}/5</span><br>
           <span>Type: ${inc.disaster_type || 'N/A'}</span><br>
           <span>📍 ${inc.location_name}</span><br>
-          <span>Status: ${inc.status}</span><br>
+          <span>Status: ${inc.status_marker || inc.status}</span><br>
+          ${inc.source_url ? `<a href="${inc.source_url}" target="_blank" rel="noopener" style="color:#93c5fd">Source update</a><br>` : ''}
           ${inc.ai_summary ? `<p style="margin-top:8px;font-size:11px;opacity:0.8">${inc.ai_summary}</p>` : ''}
         </div>
       `);
@@ -300,7 +301,11 @@ function renderAlertsFeed(alerts) {
     <div class="alert-item severity-${a.severity}">
       <h4>${a.title}</h4>
       <p>${a.message}</p>
-      <div class="alert-time">${timeAgo(a.created_at)}</div>
+      <div class="alert-time">
+        ${a.status_marker ? `<span class="status-pill">${a.status_marker}</span>` : ''}
+        ${timeAgo(a.created_at)}
+        ${a.source_url ? ` · <a href="${a.source_url}" target="_blank" rel="noopener">source</a>` : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -358,7 +363,7 @@ async function refreshIncidents() {
         <td>${inc.disaster_type || 'N/A'}</td>
         <td><span class="severity-badge sev-${inc.severity}">Level ${inc.severity}</span></td>
         <td>📍 ${inc.location_name}</td>
-        <td><span class="status-badge status-${inc.status}">${inc.status}</span></td>
+        <td><span class="status-badge status-${inc.status}">${inc.status_marker || inc.status}</span></td>
         <td><span class="age-badge ${inc.is_old ? 'old' : 'current'}">${inc.data_age || (inc.is_old ? 'Old' : 'Current')}</span></td>
         <td>${timeAgo(inc.created_at)}</td>
       </tr>
@@ -413,9 +418,10 @@ async function refreshAlerts() {
         <h4>${a.title}</h4>
         <p>${a.message}</p>
         <div class="alert-footer">
-          <span>Severity: Level ${a.severity}</span>
+          <span>Severity: Level ${a.severity}${a.status_marker ? ` · ${a.status_marker}` : ''}</span>
           <span>${timeAgo(a.created_at)}</span>
         </div>
+        ${a.source_url ? `<a class="source-link" href="${a.source_url}" target="_blank" rel="noopener">Open source update</a>` : ''}
       </div>
     `).join('') || '<div class="empty-state"><span>🔔</span><p>No alerts yet</p></div>';
   } catch (err) {
@@ -635,6 +641,6 @@ function updateLastRefreshed() {
   if (el) {
     const now = new Date();
     el.textContent = `Updated: ${now.toLocaleTimeString()}`;
-    el.title = `Dashboard auto-refreshes every 2 minutes with real-time data from USGS, GDACS, Open-Meteo, and Bhudev`;
+    el.title = `Dashboard auto-refreshes every minute with Uttarakhand-only data from USGS, GDACS, Open-Meteo, Bhudev, and recent trusted news`;
   }
 }

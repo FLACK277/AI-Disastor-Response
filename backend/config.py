@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     GEOCODER_USER_AGENT: str = "disaster-response-coordinator"
 
     # Live Data Feed Cache
-    LIVE_CACHE_TTL_SECONDS: int = 300  # 5 minutes between API re-fetches
+    LIVE_CACHE_TTL_SECONDS: int = 60  # 1 minute between live-source re-fetches
 
     class Config:
         env_file = ".env"
