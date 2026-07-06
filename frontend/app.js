@@ -187,10 +187,11 @@ async function loadDashboardData(sessionId = state.sessionId) {
   if (!state.token || sessionId !== state.sessionId) return;
   const loadId = ++state.dashboardLoadId;
   try {
-    const [stats, incidents, alerts] = await Promise.all([
+    const [stats, incidents, alerts, liveStatus] = await Promise.all([
       apiFetch('/api/stats'),
       apiFetch('/api/incidents?limit=50'),
       apiFetch('/api/alerts?limit=20'),
+      apiFetch('/api/live-status'),
     ]);
     if (sessionId !== state.sessionId || loadId !== state.dashboardLoadId) return;
     
@@ -210,7 +211,7 @@ async function loadDashboardData(sessionId = state.sessionId) {
     
     // Update alerts feed
     state.alerts = alerts;
-    renderAlertsFeed(alerts);
+    renderAlertsFeed(alerts, liveStatus);
     
     // Render charts
     renderSeverityChart(stats.severity_distribution);
@@ -291,10 +292,18 @@ function severityColor(sev) {
 }
 
 // ─── Alerts Feed ───
-function renderAlertsFeed(alerts) {
+function getNoFreshAlertMessage(liveStatus) {
+  const recentNews = liveStatus?.sources?.recent_news;
+  if (recentNews?.no_fresh_alerts && recentNews.message) {
+    return recentNews.message;
+  }
+  return 'Waiting for incoming alerts...';
+}
+
+function renderAlertsFeed(alerts, liveStatus = null) {
   const feed = document.getElementById('alerts-feed');
   if (!alerts.length) {
-    feed.innerHTML = '<div class="empty-state"><span>📡</span><p>Waiting for incoming alerts...</p></div>';
+    feed.innerHTML = `<div class="empty-state"><span>📡</span><p>${getNoFreshAlertMessage(liveStatus)}</p></div>`;
     return;
   }
   feed.innerHTML = alerts.slice(0, 15).map(a => `
@@ -411,7 +420,10 @@ function filterResources(filter) {
 // ─── Alerts Page ───
 async function refreshAlerts() {
   try {
-    const alerts = await apiFetch('/api/alerts?limit=50');
+    const [alerts, liveStatus] = await Promise.all([
+      apiFetch('/api/alerts?limit=50'),
+      apiFetch('/api/live-status'),
+    ]);
     const list = document.getElementById('alerts-list');
     list.innerHTML = alerts.map(a => `
       <div class="alert-detail">
@@ -423,7 +435,7 @@ async function refreshAlerts() {
         </div>
         ${a.source_url ? `<a class="source-link" href="${a.source_url}" target="_blank" rel="noopener">Open source update</a>` : ''}
       </div>
-    `).join('') || '<div class="empty-state"><span>🔔</span><p>No alerts yet</p></div>';
+    `).join('') || `<div class="empty-state"><span>🔔</span><p>${getNoFreshAlertMessage(liveStatus)}</p></div>`;
   } catch (err) {
     showToast('Failed to load alerts', 'error');
   }

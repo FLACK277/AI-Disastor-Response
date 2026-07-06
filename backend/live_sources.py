@@ -21,7 +21,7 @@ import time
 import subprocess
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 import httpx
 from dataclasses import dataclass, field
@@ -109,6 +109,7 @@ DISASTER_KEYWORD_TYPES = {
     "flash flood": "flood",
     "cloudburst": "flood",
     "waterlogging": "flood",
+    "rainfall": "flood",
     "heavy rain": "flood",
     "landslide": "landslide",
     "rockfall": "landslide",
@@ -122,6 +123,8 @@ DISASTER_KEYWORD_TYPES = {
     "industrial": "industrial",
     "chemical": "industrial",
     "gas leak": "industrial",
+    "red alert": "other",
+    "orange alert": "other",
 }
 
 TRUSTED_NEWS_SOURCES = {
@@ -141,11 +144,51 @@ TRUSTED_NEWS_SOURCES = {
     "The Economic Times",
     "News18",
     "Down To Earth Magazine",
+    "News On AIR",
+    "The Statesman",
+    "Garhwal Post",
+    "Zee News",
+    "Daily Pioneer",
+    "News24",
+    "Uttarakhand News Network",
+    "Mid-day",
+}
+
+TRUSTED_NEWS_DOMAINS = {
+    "aninews.in",
+    "thehindu.com",
+    "hindustantimes.com",
+    "indianexpress.com",
+    "timesofindia.indiatimes.com",
+    "ndtv.com",
+    "indiatoday.in",
+    "business-standard.com",
+    "deccanherald.com",
+    "economictimes.indiatimes.com",
+    "news18.com",
+    "downtoearth.org.in",
+    "newsonair.gov.in",
+    "thestatesman.com",
+    "garhwalpost.in",
+    "zeenews.india.com",
+    "dailypioneer.com",
+    "news24online.com",
+    "uttarakhandnewsnetwork.com",
+    "mid-day.com",
+}
+
+NORMALIZED_TRUSTED_NEWS_SOURCES = {
+    re.sub(r"\s+", " ", source.strip()).lower()
+    for source in TRUSTED_NEWS_SOURCES
+}
+
+NORMALIZED_TRUSTED_NEWS_DOMAINS = {
+    domain.strip().lower().removeprefix("www.").rstrip("/")
+    for domain in TRUSTED_NEWS_DOMAINS
 }
 
 NEWS_QUERIES = [
-    'Uttarakhand (landslide OR flood OR cloudburst OR earthquake OR "forest fire" OR wildfire OR avalanche OR heatwave OR disaster) when:7d',
-    'Uttarakhand disaster response evacuation casualties latest when:7d',
+    'Uttarakhand (landslide OR "red alert" OR "orange alert" OR rainfall OR flood OR cloudburst OR earthquake OR "forest fire" OR wildfire OR avalanche OR heatwave OR disaster) when:2d',
 ]
 
 # WMO weather codes that indicate severe/dangerous conditions
@@ -167,6 +210,8 @@ SEVERE_WEATHER_CODES = {
 DEFAULT_CACHE_TTL = 60  # 1 minute
 RECENT_EVENT_WINDOW_DAYS = 7
 DEFAULT_MAX_EVENT_AGE_HOURS = 24 * RECENT_EVENT_WINDOW_DAYS
+DEFAULT_NEWS_CUTOFF_HOURS = 36
+DEFAULT_NEWS_CACHE_TTL_SECONDS = 300
 
 HTTP_TIMEOUT = 20  # seconds
 
@@ -194,6 +239,8 @@ class RealTimeLiveSource:
     def __init__(self, cache_ttl: int = DEFAULT_CACHE_TTL):
         self._cache_ttl = cache_ttl
         self._cache: _CacheEntry | None = None
+        self._news_cache: _CacheEntry | None = None
+        self._news_cache_ttl = max(0, int(getattr(settings, "NEWS_CACHE_TTL_SECONDS", DEFAULT_NEWS_CACHE_TTL_SECONDS)))
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -277,7 +324,6 @@ class RealTimeLiveSource:
             news = self._fetch_recent_news()
             all_incidents.extend(news.incidents)
             all_alerts.extend(news.alerts)
-            self._last_status["recent_news"] = {"ok": True, "count": len(news.incidents)}
         except Exception as e:
             logger.error(f"Recent news fetch failed: {e}")
             self._last_status["recent_news"] = {"ok": False, "error": str(e)}
@@ -585,21 +631,69 @@ class RealTimeLiveSource:
 
     def _fetch_recent_news(self) -> LiveFeedBundle:
         """Fetch last-7-days Uttarakhand disaster updates from trusted news RSS."""
+        now = time.time()
+        if self._news_cache and (now - self._news_cache.fetched_at) < self._news_cache_ttl:
+            cached_status = dict(self._news_cache.source_status)
+            cached_status["cached"] = True
+            cached_status["cache_age_seconds"] = round(now - self._news_cache.fetched_at, 2)
+            self._last_status["recent_news"] = cached_status
+            return self._news_cache.data
+
         incidents: list[dict] = []
         seen_links: set[str] = set()
+        cutoff_hours = max(1, int(getattr(settings, "CUTOFF_HOURS", DEFAULT_NEWS_CUTOFF_HOURS)))
+        freshness_cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=cutoff_hours)
+        debug_filters = bool(getattr(settings, "DEBUG_FILTERS", False))
+        total_items = 0
+        dropped_source = 0
+        dropped_keyword = 0
+        dropped_freshness = 0
+        dropped_duplicate = 0
+        dropped_historical = 0
+        dropped_unparseable_date = 0
+        source_filter_recovered = 0
+        timing = {
+            "rss_fetch_ms": 0.0,
+            "source_filter_ms": 0.0,
+            "keyword_filter_ms": 0.0,
+            "freshness_cutoff_ms": 0.0,
+        }
+        source_debug_lines: list[str] = []
+        status = {
+            "ok": True,
+            "count": 0,
+            "cutoff_hours": cutoff_hours,
+            "cached": False,
+            "cache_ttl_seconds": self._news_cache_ttl,
+            "no_fresh_alerts": False,
+            "message": "",
+            "dropped": {},
+            "timing_ms": {},
+            "source_filter_recovered_by_fixed_match": 0,
+        }
+        if debug_filters:
+            source_debug_lines.append(
+                "Recent news trusted source names="
+                f"{sorted(TRUSTED_NEWS_SOURCES, key=str.lower)} domains={sorted(TRUSTED_NEWS_DOMAINS)}"
+            )
 
         for query in NEWS_QUERIES:
             url = (
                 "https://news.google.com/rss/search"
                 f"?q={quote_plus(query)}&hl=en-IN&gl=IN&ceid=IN:en"
             )
+            rss_start = time.perf_counter()
             xml_text = self._http_get_text(url)
+            timing["rss_fetch_ms"] += (time.perf_counter() - rss_start) * 1000
             root = ET.fromstring(xml_text)
 
             for item in root.findall("./channel/item"):
+                total_items += 1
                 raw_title = item.findtext("title", default="")
                 raw_description = item.findtext("description", default="")
-                source_name = item.findtext("source", default="Google News")
+                source_el = item.find("source")
+                source_name = source_el.text if source_el is not None and source_el.text else "Google News"
+                source_url = source_el.get("url", "") if source_el is not None else ""
                 link = item.findtext("link", default="")
                 pub_date = item.findtext("pubDate", default="")
 
@@ -609,21 +703,49 @@ class RealTimeLiveSource:
                 combined_text = f"{title} {description}"
 
                 if link in seen_links:
+                    dropped_duplicate += 1
                     continue
-                if not self._is_trusted_news_source(source_name):
+                source_start = time.perf_counter()
+                source_match = self._trusted_news_source_match(source_name, source_url, link)
+                timing["source_filter_ms"] += (time.perf_counter() - source_start) * 1000
+                if debug_filters:
+                    legacy_source_match = self._legacy_trusted_news_source_match(source_name)
+                    if source_match["matched"] and not legacy_source_match:
+                        source_filter_recovered += 1
+                    source_debug_lines.append(
+                        "Recent news source filter "
+                        f"item={total_items} matched={source_match['matched']} "
+                        f"legacy_matched={legacy_source_match} reason={source_match['reason']} "
+                        f"raw_source={source_name!r} source_url={source_url!r} "
+                        f"source_domain={source_match['source_domain']!r} "
+                        f"link_domain={source_match['link_domain']!r} title={title[:140]!r}"
+                    )
+                if not source_match["matched"]:
+                    dropped_source += 1
                     continue
-                if not self._is_uttarakhand_item(combined_text, None, None):
+
+                keyword_start = time.perf_counter()
+                disaster_type = self._infer_disaster_type(combined_text)
+                keyword_match = self._is_uttarakhand_item(combined_text, None, None) and disaster_type
+                timing["keyword_filter_ms"] += (time.perf_counter() - keyword_start) * 1000
+                if not keyword_match:
+                    dropped_keyword += 1
                     continue
                 if self._is_historical_or_drill(combined_text):
+                    dropped_historical += 1
                     continue
 
-                disaster_type = self._infer_disaster_type(combined_text)
-                if not disaster_type:
-                    continue
-
+                freshness_start = time.perf_counter()
                 published_at = self._parse_rss_datetime(pub_date)
-                if not published_at or not self._is_recent({"created_at": published_at.isoformat()}):
+                if not published_at:
+                    timing["freshness_cutoff_ms"] += (time.perf_counter() - freshness_start) * 1000
+                    dropped_unparseable_date += 1
                     continue
+                if published_at < freshness_cutoff:
+                    timing["freshness_cutoff_ms"] += (time.perf_counter() - freshness_start) * 1000
+                    dropped_freshness += 1
+                    continue
+                timing["freshness_cutoff_ms"] += (time.perf_counter() - freshness_start) * 1000
 
                 seen_links.add(link)
                 location_name, lat, lng = self._infer_location(combined_text)
@@ -659,8 +781,65 @@ class RealTimeLiveSource:
                 if len(incidents) >= 12:
                     break
 
+        incidents.sort(key=self._sort_key, reverse=True)
         alerts = [self._incident_to_alert(inc, "UTTARAKHAND UPDATE") for inc in incidents]
-        return LiveFeedBundle(incidents=incidents, alerts=alerts)
+        alerts.sort(key=self._sort_key, reverse=True)
+
+        status["count"] = len(incidents)
+        status["dropped"] = {
+            "source_filter": dropped_source,
+            "keyword_filter": dropped_keyword,
+            "freshness_cutoff": dropped_freshness,
+            "duplicate": dropped_duplicate,
+            "historical_or_drill": dropped_historical,
+            "unparseable_pubdate": dropped_unparseable_date,
+        }
+        status["timing_ms"] = {name: round(value, 2) for name, value in timing.items()}
+        status["source_filter_recovered_by_fixed_match"] = source_filter_recovered
+        if debug_filters and source_debug_lines:
+            logger.info("\n".join(source_debug_lines))
+
+        if not incidents:
+            status["no_fresh_alerts"] = True
+            status["message"] = f"No fresh alerts in the last {cutoff_hours} hours"
+            logger.info(
+                "Recent news: no fresh alerts in the last %s hours "
+                "(items=%s, dropped_source=%s, dropped_keyword=%s, dropped_freshness=%s, "
+                "dropped_duplicate=%s, dropped_historical=%s, dropped_unparseable_date=%s, "
+                "source_filter_recovered_by_fixed_match=%s)",
+                cutoff_hours,
+                total_items,
+                dropped_source,
+                dropped_keyword,
+                dropped_freshness,
+                dropped_duplicate,
+                dropped_historical,
+                dropped_unparseable_date,
+                source_filter_recovered,
+            )
+        else:
+            logger.info(
+                "Recent news: %s fresh alerts accepted from %s RSS items "
+                "(cutoff_hours=%s, dropped_source=%s, dropped_keyword=%s, "
+                "dropped_freshness=%s, dropped_duplicate=%s, dropped_historical=%s, "
+                "dropped_unparseable_date=%s, source_filter_recovered_by_fixed_match=%s)",
+                len(incidents),
+                total_items,
+                cutoff_hours,
+                dropped_source,
+                dropped_keyword,
+                dropped_freshness,
+                dropped_duplicate,
+                dropped_historical,
+                dropped_unparseable_date,
+                source_filter_recovered,
+            )
+        logger.info("Recent news timing: %s", status["timing_ms"])
+
+        self._last_status["recent_news"] = status
+        bundle = LiveFeedBundle(incidents=incidents, alerts=alerts)
+        self._news_cache = _CacheEntry(data=bundle, fetched_at=time.time(), source_status=status)
+        return bundle
 
     # ── HTTP helpers ──────────────────────────────────────────────────────
 
@@ -771,9 +950,75 @@ class RealTimeLiveSource:
         return text
 
     @staticmethod
-    def _is_trusted_news_source(source_name: str) -> bool:
+    def _normalize_source_name(source_name: str) -> str:
+        return re.sub(r"\s+", " ", (source_name or "").strip()).lower()
+
+    @staticmethod
+    def _normalize_domain(domain: str) -> str:
+        normalized = (domain or "").strip().lower()
+        if normalized.startswith("www."):
+            normalized = normalized[4:]
+        return normalized.rstrip("/")
+
+    @classmethod
+    def _domain_from_url(cls, value: str) -> str:
+        if not value:
+            return ""
+        parsed = urlparse(value if re.match(r"^[a-z][a-z0-9+.-]*://", value, re.I) else f"https://{value}")
+        return cls._normalize_domain(parsed.netloc)
+
+    @classmethod
+    def _trusted_domain_match(cls, domain: str) -> bool:
+        normalized = cls._normalize_domain(domain)
+        if not normalized:
+            return False
+        return any(
+            normalized == trusted or normalized.endswith(f".{trusted}")
+            for trusted in NORMALIZED_TRUSTED_NEWS_DOMAINS
+        )
+
+    @classmethod
+    def _legacy_trusted_news_source_match(cls, source_name: str) -> bool:
         source = (source_name or "").strip().lower()
-        return any(source == trusted.lower() for trusted in TRUSTED_NEWS_SOURCES)
+        return source in NORMALIZED_TRUSTED_NEWS_SOURCES
+
+    @classmethod
+    def _trusted_news_source_match(cls, source_name: str, source_url: str = "", link: str = "") -> dict:
+        source = cls._normalize_source_name(source_name)
+        source_domain = cls._domain_from_url(source_url)
+        link_domain = cls._domain_from_url(link)
+
+        if source in NORMALIZED_TRUSTED_NEWS_SOURCES:
+            return {
+                "matched": True,
+                "reason": "source_name",
+                "source_domain": source_domain,
+                "link_domain": link_domain,
+            }
+        if cls._trusted_domain_match(source_domain):
+            return {
+                "matched": True,
+                "reason": "source_url_domain",
+                "source_domain": source_domain,
+                "link_domain": link_domain,
+            }
+        if cls._trusted_domain_match(link_domain):
+            return {
+                "matched": True,
+                "reason": "link_domain",
+                "source_domain": source_domain,
+                "link_domain": link_domain,
+            }
+        return {
+            "matched": False,
+            "reason": "no_match",
+            "source_domain": source_domain,
+            "link_domain": link_domain,
+        }
+
+    @classmethod
+    def _is_trusted_news_source(cls, source_name: str) -> bool:
+        return cls._trusted_news_source_match(source_name)["matched"]
 
     @staticmethod
     def _is_uttarakhand_item(text: str, lat: float | None, lng: float | None) -> bool:

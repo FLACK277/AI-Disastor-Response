@@ -36,6 +36,9 @@ class Settings(BaseSettings):
 
     # Live Data Feed Cache
     LIVE_CACHE_TTL_SECONDS: int = 60  # 1 minute between live-source re-fetches
+    CUTOFF_HOURS: int = 36  # hard freshness cutoff for news RSS items
+    NEWS_CACHE_TTL_SECONDS: int = 300  # 5 minutes between Google News RSS fetches
+    DEBUG_FILTERS: bool = False  # opt-in verbose per-item source filter diagnostics
 
     class Config:
         env_file = ".env"

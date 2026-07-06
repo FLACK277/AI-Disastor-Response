@@ -151,6 +151,8 @@ body {
 /* ─── Main Content ─── */
 #main-content {
   margin-left: var(--sidebar-w);
+  width: calc(100vw - var(--sidebar-w));
+  min-width: 0;
   height: 100vh; display: flex; flex-direction: column;
   overflow: hidden; transition: var(--transition);
 }
@@ -407,7 +409,7 @@ tr:hover td { background: var(--bg-glass); }
 @media (max-width: 768px) {
   #sidebar { left: calc(-1 * var(--sidebar-w)); }
   #sidebar.open { left: 0; }
-  #main-content { margin-left: 0; }
+  #main-content { margin-left: 0; width: 100vw; }
   .menu-toggle { display: block; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
