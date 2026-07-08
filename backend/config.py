@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8000"
 
+    # Render assigns the public URL to RENDER_EXTERNAL_HOSTNAME / RENDER_EXTERNAL_URL
+    RENDER_EXTERNAL_URL: Optional[str] = None
+
     # Mock Feed (disabled by default so production-like runs only show real reports)
     MOCK_FEED_INTERVAL: int = 25
     MOCK_FEED_ENABLED: bool = False
