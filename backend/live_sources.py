@@ -19,6 +19,7 @@ import logging
 import re
 import time
 import subprocess
+import unicodedata
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus, urlparse
@@ -177,15 +178,39 @@ TRUSTED_NEWS_DOMAINS = {
     "mid-day.com",
 }
 
-NORMALIZED_TRUSTED_NEWS_SOURCES = {
-    re.sub(r"\s+", " ", source.strip()).lower()
-    for source in TRUSTED_NEWS_SOURCES
-}
+def _fold_text(value: str) -> str:
+    """Aggressively normalize text for source-name comparison.
+
+    Google News RSS frequently returns publisher names containing lookalike
+    Unicode characters (smart dashes, NBSPs, curly quotes, fullwidth digits).
+    Without folding these, an item with source "Mid\u2013day" will not match
+    the trusted entry "Mid-day", and a publisher that legitimately belongs to a
+    trusted domain may be silently dropped.
+    """
+    if not value:
+        return ""
+    # NFKC folds compatibility characters (fullwidth -> ASCII, etc.).
+    value = unicodedata.normalize("NFKC", value)
+    # Fold dashes and hyphens to a plain ASCII dash.
+    value = re.sub(r"[\u2010-\u2015\u2212]", "-", value)
+    # Strip stray punctuation that some publishers append.
+    value = re.sub(r"\s+", " ", value.strip()).lower()
+    return value
+
+
+NORMALIZED_TRUSTED_NEWS_SOURCES = {_fold_text(source) for source in TRUSTED_NEWS_SOURCES}
 
 NORMALIZED_TRUSTED_NEWS_DOMAINS = {
     domain.strip().lower().removeprefix("www.").rstrip("/")
     for domain in TRUSTED_NEWS_DOMAINS
 }
+
+# Display labels derived from trusted domains (e.g. "zeenews.india.com" -> "zee news").
+# Lets a publisher-name match succeed when only the domain is trusted.
+_TRUSTED_DOMAIN_LABELS: set[str] = set()
+for _d in TRUSTED_NEWS_DOMAINS:
+    _label = _d.split(".")[0].replace("-", " ")
+    _TRUSTED_DOMAIN_LABELS.add(_label)
 
 NEWS_QUERIES = [
     'Uttarakhand (landslide OR "red alert" OR "orange alert" OR rainfall OR flood OR cloudburst OR earthquake OR "forest fire" OR wildfire OR avalanche OR heatwave OR disaster) when:2d',
@@ -862,14 +887,30 @@ class RealTimeLiveSource:
 
     @staticmethod
     def _fetch_html_via_powershell(url: str) -> str:
-        """Fallback for Bhudev: use PowerShell to avoid local SSL issues."""
+        """Fetch a page as HTML, preferring httpx and falling back to PowerShell.
+
+        The PowerShell path exists to work around local SSL/TLS issues on some
+        Windows hosts; httpx is tried first so the same code path also works on
+        Linux/macOS where ``powershell`` is unavailable.
+        """
+        # 1. Try httpx first (cross-platform).
+        try:
+            headers = {"User-Agent": "AI-Disaster-Response/1.0"}
+            with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True, headers=headers, verify=False) as client:
+                resp = client.get(url)
+                resp.raise_for_status()
+                return resp.text
+        except Exception as e:
+            logger.debug(f"httpx fetch failed for {url}: {e}; trying PowerShell fallback")
+
+        # 2. Windows-only PowerShell fallback.
         command = [
             "powershell", "-NoProfile", "-Command",
             f"Invoke-WebRequest -Uri '{url}' -UseBasicParsing | Select-Object -ExpandProperty Content",
         ]
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=25, check=True)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             logger.error(f"PowerShell fetch failed for {url}: {e}")
             return ""
         return result.stdout
@@ -951,7 +992,7 @@ class RealTimeLiveSource:
 
     @staticmethod
     def _normalize_source_name(source_name: str) -> str:
-        return re.sub(r"\s+", " ", (source_name or "").strip()).lower()
+        return _fold_text(source_name)
 
     @staticmethod
     def _normalize_domain(domain: str) -> str:
@@ -992,6 +1033,15 @@ class RealTimeLiveSource:
             return {
                 "matched": True,
                 "reason": "source_name",
+                "source_domain": source_domain,
+                "link_domain": link_domain,
+            }
+        # Match publisher names that are the bare label of a trusted domain
+        # (e.g. <source>"Zee News"</source> for trusted domain zeenews.india.com).
+        if source and source in _TRUSTED_DOMAIN_LABELS:
+            return {
+                "matched": True,
+                "reason": "source_name_domain_label",
                 "source_domain": source_domain,
                 "link_domain": link_domain,
             }
@@ -1061,9 +1111,14 @@ class RealTimeLiveSource:
     @staticmethod
     def _news_severity(text: str) -> int:
         normalized = (text or "").lower()
-        if any(word in normalized for word in ["red alert", "dead", "death", "killed", "missing", "evacuated", "trapped"]):
+        # Match on word boundaries so substrings like "dead" inside "deadline"
+        # or "warning" inside "forewarning" do not inflate severity.
+        def _has(*phrases: str) -> bool:
+            return any(re.search(rf"\b{re.escape(phrase)}\b", normalized) for phrase in phrases)
+
+        if _has("red alert", "dead", "deaths", "death", "deadly", "killed", "missing", "evacuated", "trapped"):
             return 4
-        if any(word in normalized for word in ["orange alert", "warning", "landslide", "cloudburst", "flash flood", "forest fire"]):
+        if _has("orange alert", "warning", "landslide", "cloudburst", "flash flood", "forest fire"):
             return 3
         return 2
 
@@ -1108,6 +1163,10 @@ class RealTimeLiveSource:
 
     @staticmethod
     def _magnitude_to_severity(magnitude: float) -> int:
+        try:
+            magnitude = float(magnitude or 0)
+        except (TypeError, ValueError):
+            magnitude = 0.0
         if magnitude >= 6.0:
             return 5
         if magnitude >= 5.0:

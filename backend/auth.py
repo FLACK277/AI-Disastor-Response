@@ -4,8 +4,11 @@ JWT-based auth with role-based access control (authority / ngo / civilian).
 """
 
 import hashlib
-from datetime import datetime, timedelta
+import hmac
+import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+import bcrypt
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -14,22 +17,68 @@ from backend.config import settings
 from backend.database import get_db
 from backend.models import UserDB
 
+logger = logging.getLogger(__name__)
+
 security = HTTPBearer(auto_error=False)
+
+# Bcrypt truncates passwords at 72 bytes. We pre-hash overlong passwords with
+# SHA-256 (salted) so any length is accepted while still using bcrypt for the
+# slow, salted final hash. This matches the common "bcrypt(sha256(pw))" pattern.
+_BCRYPT_MAX_BYTES = 72
+_LEGACY_SALT = "adrc_salt_2026_"
+
+
+def _pre_hash(password: str) -> str:
+    """Reduce an arbitrarily long password to a bcrypt-safe string."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def _legacy_sha256(password: str) -> str:
+    """Legacy SHA-256 hash used only for recognizing old password hashes."""
+    return hashlib.sha256(f"{_LEGACY_SALT}{password}".encode()).hexdigest()
+
+
+def _is_legacy_sha256(hashed_password: str) -> bool:
+    """Detect the pre-bcrypt SHA-256 scheme (64-char hex digest, no $ prefix)."""
+    return (
+        len(hashed_password) == 64
+        and not hashed_password.startswith("$")
+        and all(c in "0123456789abcdef" for c in hashed_password)
+    )
 
 
 def hash_password(password: str) -> str:
-    """Hash password using SHA-256 with a static salt (sufficient for hackathon demo)."""
-    salted = f"adrc_salt_2026_{password}"
-    return hashlib.sha256(salted.encode()).hexdigest()
+    """Hash a password using bcrypt (preferred)."""
+    payload = password.encode("utf-8")
+    if len(payload) > _BCRYPT_MAX_BYTES:
+        payload = _pre_hash(password).encode("utf-8")
+    return bcrypt.hashpw(payload, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return hash_password(plain_password) == hashed_password
+    """Verify a password against a stored hash.
+
+    Accepts both bcrypt hashes and legacy SHA-256 hashes (recognized by their
+    64-char hex format). Legacy hashes are transparently re-hashed to bcrypt
+    by the login handler on the next successful login.
+    """
+    if not hashed_password:
+        return False
+    if _is_legacy_sha256(hashed_password):
+        # Legacy SHA-256 hash — constant-time compare.
+        return hmac.compare_digest(_legacy_sha256(plain_password), hashed_password)
+    try:
+        payload = plain_password.encode("utf-8")
+        if len(payload) > _BCRYPT_MAX_BYTES:
+            payload = _pre_hash(plain_password).encode("utf-8")
+        return bcrypt.checkpw(payload, hashed_password.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.JWT_EXPIRE_MINUTES))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.JWT_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 

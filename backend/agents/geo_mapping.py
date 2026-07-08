@@ -7,11 +7,6 @@ import logging
 import math
 from typing import Optional, Tuple
 
-from geopy.exc import GeocoderServiceError, GeocoderTimedOut
-from geopy.geocoders import Nominatim
-
-from backend.config import settings
-
 logger = logging.getLogger(__name__)
 
 # Fallback coordinates for Uttarakhand places. These are only used when

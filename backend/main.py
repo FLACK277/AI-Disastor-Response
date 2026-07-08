@@ -27,7 +27,7 @@ from backend.models import (
 )
 from backend.auth import (
     hash_password, verify_password, create_access_token,
-    get_current_user, require_auth, require_role,
+    require_role,
 )
 from backend.websocket_manager import ws_manager
 from backend.agents.orchestrator import orchestrator
@@ -78,6 +78,10 @@ def seed_database():
         logger.info("✅ Default demo users created (admin/rescuer/citizen — password: password123)")
         clear_hidden_mock_allocations(db)
         purge_example_history(db)
+        purge_stale_mock_incidents(db)
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -110,16 +114,39 @@ def visible_alerts_query(db: Session, include_mock: bool = False):
 
 
 def serialize_incident(record: IncidentDB | dict) -> dict:
-    """Normalize DB and live-feed incidents into API response shape."""
+    """Normalize DB and live-feed incidents into API response shape.
+
+    Routing live-feed dicts through the Pydantic model guarantees that
+    malformed timestamps or missing fields raise here (and are skipped by the
+    caller's aggregation) rather than 500-ing the whole list endpoint.
+    """
     if isinstance(record, dict):
-        return record
+        # Defaults for fields the live feed may omit/None.
+        payload = {
+            "severity": record.get("severity") or 1,
+            "affected_population": record.get("affected_population") or 0,
+            "status": record.get("status") or "reported",
+            "source": record.get("source") or "live",
+            "location_name": record.get("location_name") or "Unknown",
+            "title": record.get("title") or "Untitled incident",
+            "description": record.get("description") or "",
+            **record,
+        }
+        return IncidentResponse.model_validate(payload).model_dump()
     return IncidentResponse.model_validate(record).model_dump()
 
 
 def serialize_alert(record: AlertDB | dict) -> dict:
     """Normalize DB and live-feed alerts into API response shape."""
     if isinstance(record, dict):
-        return record
+        payload = {
+            "severity": record.get("severity") or 1,
+            "alert_type": record.get("alert_type") or "general",
+            "title": record.get("title") or "Alert",
+            "message": record.get("message") or "",
+            **record,
+        }
+        return AlertResponse.model_validate(payload).model_dump()
     return AlertResponse.model_validate(record).model_dump()
 
 
@@ -149,24 +176,43 @@ def add_data_age(record: dict) -> dict:
     return item
 
 
+def _safe_serialize(serializer, record):
+    """Serialize a record, returning None if Pydantic validation fails."""
+    try:
+        return serializer(record)
+    except Exception as e:
+        logger.warning(f"Skipping record that failed serialization: {e}")
+        return None
+
+
 def combined_incidents(db: Session, limit: int = 50, include_mock: bool = False) -> list[dict]:
     """Return live Uttarakhand incidents plus stored user incidents."""
-    stored = [
-        add_data_age(serialize_incident(incident))
-        for incident in visible_incidents_query(db, include_mock).order_by(IncidentDB.created_at.desc()).all()
-    ]
-    live = [add_data_age(incident) for incident in live_source.fetch(limit=limit).incidents]
+    stored = []
+    for incident in visible_incidents_query(db, include_mock).order_by(IncidentDB.created_at.desc()).all():
+        serialized = _safe_serialize(serialize_incident, incident)
+        if serialized is not None:
+            stored.append(add_data_age(serialized))
+    live = []
+    for incident in live_source.fetch(limit=limit).incidents:
+        serialized = _safe_serialize(serialize_incident, incident)
+        if serialized is not None:
+            live.append(add_data_age(serialized))
     combined = sorted(stored + live, key=lambda item: sort_datetime(item.get("created_at")), reverse=True)
     return combined[:limit]
 
 
 def combined_alerts(db: Session, limit: int = 30, include_mock: bool = False) -> list[dict]:
     """Return live-source alerts plus stored alerts."""
-    stored = [
-        add_data_age(serialize_alert(alert))
-        for alert in visible_alerts_query(db, include_mock).order_by(AlertDB.created_at.desc()).all()
-    ]
-    live = [add_data_age(alert) for alert in live_source.fetch(limit=limit).alerts]
+    stored = []
+    for alert in visible_alerts_query(db, include_mock).order_by(AlertDB.created_at.desc()).all():
+        serialized = _safe_serialize(serialize_alert, alert)
+        if serialized is not None:
+            stored.append(add_data_age(serialized))
+    live = []
+    for alert in live_source.fetch(limit=limit).alerts:
+        serialized = _safe_serialize(serialize_alert, alert)
+        if serialized is not None:
+            live.append(add_data_age(serialized))
     combined = sorted(stored + live, key=lambda item: sort_datetime(item.get("created_at")), reverse=True)
     return combined[:limit]
 
@@ -213,7 +259,7 @@ def purge_example_history(db: Session):
 
 def purge_stale_mock_incidents(db: Session):
     """Remove mock-feed incidents older than 24 hours to keep the dashboard fresh."""
-    cutoff = datetime.utcnow() - timedelta(hours=24)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
     stale_ids = [
         row[0]
         for row in db.query(IncidentDB.id)
@@ -323,6 +369,11 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    # Transparently upgrade legacy SHA-256 hashes to bcrypt on successful login.
+    if len(user.hashed_password) == 64 and not user.hashed_password.startswith("$"):
+        user.hashed_password = hash_password(data.password)
+        db.commit()
+
     token = create_access_token({"sub": user.username, "role": user.role})
     return TokenResponse(
         access_token=token,
@@ -339,12 +390,16 @@ def get_incidents(limit: int = 50, include_mock: bool = False, db: Session = Dep
 
 @app.get("/api/incidents/{incident_id}", response_model=IncidentResponse)
 def get_incident(incident_id: int, db: Session = Depends(get_db)):
+    # Stored incidents use small autoincrement IDs (1, 2, 3, ...). Live-feed
+    # incidents use large synthetic IDs (>100_000_000) generated by
+    # RealTimeLiveSource._stable_id, so the two namespaces never collide.
     incident = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
     if incident:
         return incident
     for live_incident in live_source.fetch(limit=25).incidents:
-        if live_incident["id"] == incident_id:
-            return live_incident
+        if live_incident.get("id") == incident_id:
+            # Route through the serializer so the response_model validates cleanly.
+            return serialize_incident(live_incident)
     raise HTTPException(status_code=404, detail="Incident not found")
 
 
@@ -365,13 +420,13 @@ async def create_incident(data: IncidentCreate, db: Session = Depends(get_db)):
         },
     )
     incident = db.query(IncidentDB).filter(IncidentDB.id == result["id"]).first()
-    return incident
+    return serialize_incident(incident)
 
 
 @app.patch("/api/incidents/{incident_id}/status")
 def update_incident_status(
     incident_id: int,
-    status: str,
+    status: IncidentStatus,
     db: Session = Depends(get_db),
     user: UserDB = Depends(require_role("authority", "ngo")),
 ):
@@ -394,6 +449,7 @@ def get_resources(db: Session = Depends(get_db)):
 def release_resource(
     resource_id: int,
     db: Session = Depends(get_db),
+    user: UserDB = Depends(require_role("authority", "ngo")),
 ):
     resource = db.query(ResourceDB).filter(ResourceDB.id == resource_id).first()
     if not resource:
@@ -477,7 +533,7 @@ def get_heatmap(db: Session = Depends(get_db)):
         if incident.get("latitude") is not None and incident.get("longitude") is not None
     ]
     return [
-        {"lat": i["latitude"], "lng": i["longitude"], "intensity": i["severity"] / 5.0}
+        {"lat": i["latitude"], "lng": i["longitude"], "intensity": float(i.get("severity") or 0) / 5.0}
         for i in incidents
     ]
 

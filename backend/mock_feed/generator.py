@@ -15,7 +15,7 @@ DISASTER_TEMPLATES = [
         "text": "Major earthquake of magnitude {mag} struck {city} at {time}. Buildings collapsed in {area} area. Estimated {pop} people affected. Rescue teams urgently needed.",
         "params": {
             "mag": lambda: round(random.uniform(4.5, 7.8), 1),
-            "city": lambda: random.choice(["Delhi", "Mumbai", "Shimla", "Guwahati", "Imphal", "Patna", "Jaipur"]),
+            "city": lambda: random.choice(["Dehradun", "Uttarkashi", "Chamoli", "Rishikesh", "Haridwar", "Pithoragarh"]),
             "time": lambda: f"{random.randint(1,12)}:{random.randint(10,59)} {'AM' if random.random()>0.5 else 'PM'}",
             "area": lambda: random.choice(["residential", "commercial", "old city", "downtown", "suburban"]),
             "pop": lambda: random.randint(500, 50000),
@@ -24,10 +24,10 @@ DISASTER_TEMPLATES = [
     {
         "text": "Severe flooding reported in {city} after {hours} hours of continuous rainfall. Water level at {level} feet in {area}. {pop} families displaced. Road access cut off to {roads} areas.",
         "params": {
-            "city": lambda: random.choice(["Mumbai", "Chennai", "Kolkata", "Patna", "Guwahati", "Bhubaneswar", "Hyderabad"]),
+            "city": lambda: random.choice(["Haridwar", "Haldwani", "Rudraprayag", "Tehri", "Dehradun", "Nainital"]),
             "hours": lambda: random.randint(12, 72),
             "level": lambda: random.randint(3, 12),
-            "area": lambda: random.choice(["low-lying", "riverside", "coastal", "urban", "slum"]),
+            "area": lambda: random.choice(["low-lying", "riverside", "valley", "urban", "riverside town"]),
             "pop": lambda: random.randint(200, 15000),
             "roads": lambda: random.randint(3, 15),
         },
@@ -36,26 +36,25 @@ DISASTER_TEMPLATES = [
         "text": "Massive fire broke out at {place} in {city}. {floors} floors engulfed. Fire tenders deployed. {trapped} people reportedly trapped. Cause suspected: {cause}.",
         "params": {
             "place": lambda: random.choice(["factory", "residential complex", "shopping mall", "warehouse", "hotel", "hospital"]),
-            "city": lambda: random.choice(["Delhi", "Mumbai", "Bangalore", "Ahmedabad", "Lucknow", "Pune", "Surat"]),
+            "city": lambda: random.choice(["Dehradun", "Haridwar", "Haldwani", "Nainital", "Rishikesh", "Almora"]),
             "floors": lambda: random.randint(2, 15),
             "trapped": lambda: random.randint(5, 200),
             "cause": lambda: random.choice(["electrical short circuit", "gas leak", "chemical storage", "unknown"]),
         },
     },
     {
-        "text": "Cyclone {name} making landfall near {city} with wind speeds of {speed} km/h. Storm surge of {surge} meters expected. Evacuation ordered for {pop} coastal residents.",
+        "text": "Severe storm with wind speeds of {speed} km/h affecting {city} region. Heavy rainfall and {surge} meters river surge expected. Evacuation ordered for {pop} residents.",
         "params": {
-            "name": lambda: random.choice(["Biparjoy", "Tauktae", "Yaas", "Amphan", "Fani", "Michaung", "Remal"]),
-            "city": lambda: random.choice(["Vizag", "Puri", "Chennai", "Mangalore", "Kochi", "Thiruvananthapuram"]),
-            "speed": lambda: random.randint(120, 220),
-            "surge": lambda: round(random.uniform(2, 6), 1),
-            "pop": lambda: random.randint(10000, 200000),
+            "speed": lambda: random.randint(80, 160),
+            "city": lambda: random.choice(["Dehradun", "Nainital", "Pithoragarh", "Almora", "Tehri", "Haridwar"]),
+            "surge": lambda: round(random.uniform(1, 4), 1),
+            "pop": lambda: random.randint(1000, 20000),
         },
     },
     {
         "text": "Landslide reported in {city} district after heavy rains. {houses} houses buried under debris. National highway blocked at {km}km mark. {pop} people feared trapped.",
         "params": {
-            "city": lambda: random.choice(["Shimla", "Uttarakhand", "Munnar", "Wayanad", "Darjeeling", "Sikkim", "Aizawl"]),
+            "city": lambda: random.choice(["Uttarkashi", "Chamoli", "Rudraprayag", "Pithoragarh", "Bageshwar", "Tehri"]),
             "houses": lambda: random.randint(10, 80),
             "km": lambda: random.randint(20, 150),
             "pop": lambda: random.randint(20, 500),
@@ -65,7 +64,7 @@ DISASTER_TEMPLATES = [
         "text": "Industrial gas leak at {factory} in {city}. Toxic fumes spreading in {radius}km radius. {pop} residents evacuated. Medical teams treating {injured} for respiratory distress.",
         "params": {
             "factory": lambda: random.choice(["chemical plant", "fertilizer factory", "refinery", "pharmaceutical unit", "LPG bottling plant"]),
-            "city": lambda: random.choice(["Bhopal", "Vizag", "Jamnagar", "Haldia", "Ankleshwar", "Vadodara"]),
+            "city": lambda: random.choice(["Haridwar", "Dehradun", "Kashipur", "Rudrapur", "Haldwani"]),
             "radius": lambda: random.randint(2, 10),
             "pop": lambda: random.randint(1000, 20000),
             "injured": lambda: random.randint(50, 500),

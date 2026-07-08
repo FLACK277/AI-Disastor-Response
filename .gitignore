@@ -32,3 +32,14 @@ Thumbs.db
 *.pt
 *.onnx
 chroma_db/
+
+# Runtime logs / job artifacts (regenerated locally)
+*.log
+*.pid
+*.out
+*.err
+uvicorn.job.log
+
+# Generated / scratch documents
+*.docx
+

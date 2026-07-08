@@ -34,9 +34,21 @@ class WebSocketManager:
         logger.info(f"WebSocket disconnected. Total: {len(self.active_connections)}")
 
     async def broadcast(self, event_type: str, data: dict, room: str = "global"):
-        """Broadcast an event to all connections in a room."""
+        """Broadcast an event to all connections in a room.
+
+        Because every connection is also a member of the ``global`` room, a
+        broadcast to ``global`` should not double-send. Snapshot the target
+        connections into a list before iterating so disconnects performed
+        mid-broadcast do not mutate the underlying sets.
+        """
         message = json.dumps({"type": event_type, "data": data}, default=str)
-        targets = self.rooms.get(room, set()) | self.rooms.get("global", set())
+        if room == "global":
+            targets = self.active_connections
+        else:
+            # Room members plus the global room, de-duplicated.
+            targets = list(dict.fromkeys(
+                list(self.rooms.get(room, set())) + list(self.rooms.get("global", set()))
+            ))
         dead = []
         for conn in targets:
             try:
