@@ -346,16 +346,12 @@ async function loadDashboardData(sessionId = state.sessionId) {
 
   try {
 
-    const [stats, incidents, alerts, liveStatus] = await Promise.all([
-
+        const [stats, incidents, alerts, liveStatus, resources] = await Promise.all([
       apiFetch('/api/stats'),
-
       apiFetch('/api/incidents?limit=50'),
-
       apiFetch('/api/alerts?limit=20'),
-
       apiFetch('/api/live-status'),
-
+      apiFetch('/api/resources').catch(() => []),
     ]);
 
     if (sessionId !== state.sessionId || loadId !== state.dashboardLoadId) return;
@@ -376,11 +372,11 @@ async function loadDashboardData(sessionId = state.sessionId) {
 
     document.getElementById('alert-count').textContent = `${stats.total_alerts} alerts`;
 
-    // Update map markers
-
+        // Update map markers and resource markers
     state.incidents = incidents;
-
+    state.resources = resources || [];
     updateMapMarkers(incidents);
+    if (typeof updateResourceMarkers === 'function') updateResourceMarkers(state.resources);
 
     // Update alerts feed
 
@@ -409,43 +405,26 @@ async function loadDashboardData(sessionId = state.sessionId) {
 }
 
 // ─── Map ───
-
 let heatmapLayer = null;
+let resourceLayerGroup = null;
 
 function renderMapError(msg) {
-
   const container = document.getElementById('map-container');
-
   if (!container) return;
-
   container.innerHTML = `
-
     <div class="map-error-overlay" style="
-
       display:flex; flex-direction:column; align-items:center; justify-content:center;
-
       height:100%; width:100%; padding:20px; text-align:center;
-
       background: rgba(17, 24, 39, 0.95); color: #f87171; border-radius: 12px;
-
     ">
-
       <span style="font-size:36px; margin-bottom:8px;">⚠️</span>
-
       <h4 style="margin-bottom:6px; color:#f1f5f9; font-weight:600;">Map Loading Issue</h4>
-
       <p style="font-size:13px; color:#94a3b8; max-width:320px; margin-bottom:16px;">${msg}</p>
-
       <button class="btn-primary btn-sm" onclick="initMap(); if(state.incidents) updateMapMarkers(state.incidents);" style="width:auto; padding:8px 18px;">
-
         ↻ Retry Map Loading
-
       </button>
-
     </div>
-
   `;
-
 }
 
 function initMap() {
@@ -477,46 +456,63 @@ function initMap() {
       zoom: UTTARAKHAND_ZOOM,
       zoomControl: true,
       minZoom: 6,
-      maxZoom: 18,
+      maxZoom: 20,
     });
 
-    // 1. High Detail OpenStreetMap (Default) - Detailed towns, roads, rivers, landmarks
+    // 1. Google Maps Full Detail (Default) - Complete names of all places, villages, tehsils, roads, rivers, landmarks
+    const googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: 'Map data &copy; Google',
+    });
+
+    // 2. Google Terrain Map - Himalayan mountains & elevation contours + all village & place names
+    const googleTerrain = L.tileLayer('https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: 'Map data &copy; Google',
+    });
+
+    // 3. Google Hybrid Satellite - Satellite view + full place & road labels
+    const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: 'Map data &copy; Google',
+    });
+
+    // 4. OpenStreetMap High Detail
     const osmDetailed = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     });
 
-    // 2. Esri Topographic Map - Detailed Himalayan terrain, mountains, contours, elevation
-    const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; USGS, NOAA, NAVTEQ',
-      maxZoom: 18,
-    });
-
-    // 3. Esri Satellite Imagery
-    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS',
-      maxZoom: 18,
-    });
-
-    // 4. Dark Mode Map
+    // 5. Dark Theme Map
     const darkOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       className: 'dark-tile-layer',
       maxZoom: 19,
     });
 
-    // Set default layer to High Detail OpenStreetMap
-    osmDetailed.addTo(state.map);
+    // Add Google Maps Detailed as default layer
+    googleStreets.addTo(state.map);
+
+    // Overlay layer group for resources (hospitals, SDRF, fire stations)
+    resourceLayerGroup = L.layerGroup().addTo(state.map);
 
     // Add interactive Layer Control (top right)
     const baseMaps = {
-      "🗺️ Detailed Map": osmDetailed,
-      "🏔️ Topo & Terrain": esriTopo,
-      "🛰️ Satellite View": esriSatellite,
+      "🗺️ Google Full Detail": googleStreets,
+      "🏔️ Google Terrain & Places": googleTerrain,
+      "🛰️ Google Satellite + Labels": googleHybrid,
+      "🌐 OpenStreetMap": osmDetailed,
       "🌃 Dark Theme": darkOsm,
     };
 
-    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(state.map);
+    const overlays = {
+      "🏥 Hospitals & Resources": resourceLayerGroup,
+    };
+
+    L.control.layers(baseMaps, overlays, { position: 'topright' }).addTo(state.map);
 
     state.map.fitBounds(UTTARAKHAND_BOUNDS);
     setTimeout(() => {
@@ -527,6 +523,64 @@ function initMap() {
     console.error('Failed to initialize map:', err);
     renderMapError(`Map error: ${err.message || 'Could not initialize Leaflet map'}`);
   }
+}
+
+function updateResourceMarkers(resources) {
+  if (!resourceLayerGroup) return;
+  resourceLayerGroup.clearLayers();
+
+  if (!Array.isArray(resources)) return;
+
+  const typeIcons = {
+    ndrf_team: '🛡️',
+    ambulance: '🚑',
+    fire_truck: '🚒',
+    rescue_boat: '🚤',
+    helicopter: '🚁',
+    medical_unit: '🏥',
+    volunteer_group: '🤝',
+  };
+
+  resources.forEach(r => {
+    if (!r) return;
+    const lat = parseFloat(r.latitude);
+    const lng = parseFloat(r.longitude);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
+    const iconChar = typeIcons[r.resource_type] || '🏥';
+    const statusColor = r.status === 'available' ? '#10b981' : (r.status === 'deployed' ? '#ef4444' : '#f59e0b');
+
+    try {
+      const icon = L.divIcon({
+        className: 'resource-marker',
+        html: `<div style="
+          width:28px; height:28px; border-radius:50%;
+          background: rgba(15, 23, 42, 0.9);
+          border:2px solid ${statusColor};
+          display:flex; align-items:center; justify-content:center;
+          font-size:14px; box-shadow:0 0 8px ${statusColor};
+          cursor:pointer;
+        ">${iconChar}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+
+      const popup = `
+        <div style="min-width:180px; color:#1e293b;">
+          <strong style="font-size:14px; color:#0f172a">${iconChar} ${escapeHtml(r.name)}</strong><br>
+          <span style="font-size:12px; color:#475569">Type: ${escapeHtml(r.resource_type.replace(/_/g, ' '))}</span><br>
+          <span style="font-size:12px; color:${statusColor}; font-weight:700">Status: ${escapeHtml(r.status)}</span><br>
+          <span style="font-size:12px; color:#475569">Capacity: ${r.capacity}</span><br>
+          ${r.contact ? `<span style="font-size:11px; color:#2563eb">📞 ${escapeHtml(r.contact)}</span>` : ''}
+        </div>
+      `;
+
+      const marker = L.marker([lat, lng], { icon }).bindPopup(popup);
+      resourceLayerGroup.addLayer(marker);
+    } catch (e) {
+      console.warn('Failed to render resource marker:', r, e);
+    }
+  });
 }
 
 function updateMapMarkers(incidents) {
