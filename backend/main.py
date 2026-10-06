@@ -589,8 +589,9 @@ if frontend_dir.exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
+        no_cache_headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
         if full_path and not full_path.startswith("api/"):
             file_path = frontend_dir / full_path
             if file_path.is_file():
-                return FileResponse(file_path)
-        return FileResponse(frontend_dir / "index.html")
+                return FileResponse(file_path, headers=no_cache_headers)
+        return FileResponse(frontend_dir / "index.html", headers=no_cache_headers)
