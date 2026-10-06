@@ -449,123 +449,84 @@ function renderMapError(msg) {
 }
 
 function initMap() {
-
   const container = document.getElementById('map-container');
-
   if (!container) return;
 
   if (typeof L === 'undefined') {
-
     renderMapError('Leaflet map library could not be loaded. Please check network connection.');
-
     return;
-
   }
 
   if (state.map) {
-
     try {
-
       state.map.remove();
-
     } catch (e) {
-
       console.warn('Error resetting existing map instance:', e);
-
     }
-
     state.map = null;
-
   }
 
   if (container._leaflet_id) {
-
     container._leaflet_id = null;
-
     container.innerHTML = '';
-
   }
 
   try {
-
     state.map = L.map('map-container', {
-
       center: UTTARAKHAND_CENTER,
-
       zoom: UTTARAKHAND_ZOOM,
-
       zoomControl: true,
-
       minZoom: 6,
-
-      maxBounds: UTTARAKHAND_BOUNDS,
-
-      maxBoundsViscosity: 0.8,
-
-    });
-
-    const primaryTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-
-      attribution: 'Tiles © Esri — Esri, DeLorme, NAVTEQ',
-
-      subdomains: 'abcd',
-
       maxZoom: 18,
-
     });
 
-    const fallbackTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-
-      attribution: '© OpenStreetMap contributors',
-
+    // 1. High Detail OpenStreetMap (Default) - Detailed towns, roads, rivers, landmarks
+    const osmDetailed = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
-
     });
 
-    let usingFallback = false;
-
-    primaryTiles.on('tileerror', () => {
-
-      if (!usingFallback && state.map) {
-
-        usingFallback = true;
-
-        console.warn('CartoDB tiles failed to load, switching to OpenStreetMap tiles.');
-
-        try {
-
-          state.map.removeLayer(primaryTiles);
-
-          fallbackTiles.addTo(state.map);
-
-        } catch (e) {
-
-          console.warn('Failed to switch to fallback tiles:', e);
-
-        }
-
-      }
-
+    // 2. Esri Topographic Map - Detailed Himalayan terrain, mountains, contours, elevation
+    const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; USGS, NOAA, NAVTEQ',
+      maxZoom: 18,
     });
 
-    primaryTiles.addTo(state.map);
+    // 3. Esri Satellite Imagery
+    const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS',
+      maxZoom: 18,
+    });
+
+    // 4. Dark Mode Map
+    const darkOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      className: 'dark-tile-layer',
+      maxZoom: 19,
+    });
+
+    // Set default layer to High Detail OpenStreetMap
+    osmDetailed.addTo(state.map);
+
+    // Add interactive Layer Control (top right)
+    const baseMaps = {
+      "🗺️ Detailed Map": osmDetailed,
+      "🏔️ Topo & Terrain": esriTopo,
+      "🛰️ Satellite View": esriSatellite,
+      "🌃 Dark Theme": darkOsm,
+    };
+
+    L.control.layers(baseMaps, null, { position: 'topright' }).addTo(state.map);
 
     state.map.fitBounds(UTTARAKHAND_BOUNDS);
-
     setTimeout(() => {
-
       if (state.map) state.map.invalidateSize();
-
     }, 300);
 
   } catch (err) {
-
     console.error('Failed to initialize map:', err);
-
     renderMapError(`Map error: ${err.message || 'Could not initialize Leaflet map'}`);
-
   }
-
 }
 
 function updateMapMarkers(incidents) {

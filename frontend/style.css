@@ -413,3 +413,34 @@ tr:hover td { background: var(--bg-glass); }
   .menu-toggle { display: block; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+
+/* ─── Leaflet Detailed & Dark Layer Styles ─── */
+.leaflet-tile-pane .dark-tile-layer {
+  filter: brightness(0.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.3) !important;
+}
+
+.leaflet-control-layers {
+  background: rgba(17, 24, 39, 0.92) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+  padding: 8px 12px !important;
+}
+
+.leaflet-control-layers-list label {
+  color: #f1f5f9 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  margin-bottom: 4px !important;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 10px 14px !important;
+}
